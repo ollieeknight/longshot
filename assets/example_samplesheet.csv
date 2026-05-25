@@ -1,0 +1,13 @@
+experiment,library_id,10x_index,run_id,bam
+nk_activation,libA,SI-GA-A1,m84094_260226_200655_s1,/path/to/run/1_A01/hifi_reads/m84094_260226_200655_s1.hifi_reads.bcM0001.bam
+nk_activation,libB,SI-GA-A2,m84094_260226_200655_s1,/path/to/run/1_A01/hifi_reads/m84094_260226_200655_s1.hifi_reads.bcM0001.bam
+nk_activation,libC,SI-GA-A3,m84094_260226_220949_s1,/path/to/run/1_A01/hifi_reads/m84094_260226_220949_s1.hifi_reads.bcM0001.bam
+nk_activation,libD,SI-GA-A4,m84094_260226_220949_s1,/path/to/run/1_A01/hifi_reads/m84094_260226_220949_s1.hifi_reads.bcM0001.bam
+nk_activation,libA,SI-GA-A1,m84094_260226_200655_s1,/path/to/run/1_B01/hifi_reads/m84094_260226_200655_s1.hifi_reads.bcM0002.bam
+nk_activation,libB,SI-GA-A2,m84094_260226_200655_s1,/path/to/run/1_B01/hifi_reads/m84094_260226_200655_s1.hifi_reads.bcM0002.bam
+nk_activation,libC,SI-GA-A3,m84094_260226_220949_s1,/path/to/run/1_B01/hifi_reads/m84094_260226_220949_s1.hifi_reads.bcM0002.bam
+nk_activation,libD,SI-GA-A4,m84094_260226_220949_s1,/path/to/run/1_B01/hifi_reads/m84094_260226_220949_s1.hifi_reads.bcM0002.bam
+
+nk_cohort,libA,SI-GA-A1,m84094_260226_220949_s1,/path/to/run/1_A01/hifi_reads/m84094_260226_220949_s1.hifi_reads.bcM0001.bam
+nk_cohort,libB,SI-GA-A2,m84094_260226_220949_s1,/path/to/run/1_B01/hifi_reads/m84094_260226_220949_s1.hifi_reads.bcM0001.bam
+nk_cohort,libC,SI-GA-A3,m84094_260226_220949_s1,/path/to/run/1_C01/hifi_reads/m84094_260226_220949_s1.hifi_reads.bcM0001.bam

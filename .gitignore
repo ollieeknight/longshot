@@ -1,0 +1,42 @@
+# Nextflow metadata and logs
+.nextflow
+.nextflow.log*
+.nextflow/
+
+# Execution work and scratch directories
+work/
+
+# Default pipeline output directories
+results/
+out/
+outs/
+
+# OS-specific files
+.DS_Store
+Thumbs.db
+
+# Conda / virtual environments
+.conda/
+.venv/
+env/
+venv/
+*.pyc
+__pycache__/
+
+# Local container cache (if stored inside project)
+.apptainer/
+.singularity/
+*.sif
+*.img
+
+# Local run logs and reports
+*.log
+trace.txt*
+timeline.html*
+report.html*
+dag.html*
+dag.png*
+dag.svg*
+.Rhistory
+.RData
+.Rproj.user/
