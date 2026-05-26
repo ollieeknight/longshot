@@ -58,18 +58,18 @@ workflow ALIGN {
     SAMTOOLS_SORT_CB(ISOSEQ_CORRECT.out.corrected_bam)
     ISOSEQ_GROUPDEDUP(SAMTOOLS_SORT_CB.out.sorted_bam)
 
-    // QC: flagstat post-dedup
-    ISOSEQ_GROUPDEDUP.out.dedup_bam
-        .map { meta, bam -> [ meta, 'dedup', bam ] }
-        | SAMTOOLS_FLAGSTAT
-
     PBMM2_ALIGN(ISOSEQ_GROUPDEDUP.out.dedup_bam)
 
-    // QC: flagstat, mosdepth, nanostat post-alignment
-    PBMM2_ALIGN.out.aligned_bam
-        .map { meta, bam, bai -> [ meta, 'aligned', bam ] }
+    // QC: flagstat post-dedup & post-alignment
+    ISOSEQ_GROUPDEDUP.out.dedup_bam
+        .map { meta, bam -> [ meta, 'dedup', bam ] }
+        .mix(
+            PBMM2_ALIGN.out.aligned_bam
+                .map { meta, bam, bai -> [ meta, 'aligned', bam ] }
+        )
         | SAMTOOLS_FLAGSTAT
 
+    // QC: mosdepth, nanostat post-alignment
     MOSDEPTH(PBMM2_ALIGN.out.aligned_bam)
     NANOSTAT(PBMM2_ALIGN.out.aligned_bam)
 

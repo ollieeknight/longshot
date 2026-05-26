@@ -49,7 +49,9 @@ Correcting cell barcodes against a static 3-million possible barcodes list can i
 main.nf
   ├── subworkflows/preprocess.nf  →  modules/preprocess.nf  (SKERA → DETECT_INDEX → DYNAMIC_PRIMERS → LIMA → MERGE → TAG → REFINE)
   ├── subworkflows/align.nf       →  modules/align.nf        (MERGE → PREP_WHITELIST → CORRECT → SORT_CB → DEDUP → PBMM2 → CRAM)
-  ├── subworkflows/quantify.nf    →  modules/quantify.nf     (CB_SUFFIX → ISOQUANT_DISC → SQANTI3 → ISOQUANT_QUANT → EXPORTER)
+  ├── subworkflows/classify.nf    →  modules/quantify.nf     (CB_SUFFIX → ISOQUANT_DISC → SQANTI3_QC → SQANTI3_FILTER)
+  ├── subworkflows/quantify.nf    →  modules/quantify.nf     (ISOQUANT_QUANTIFY)
+  ├── subworkflows/export.nf      →  modules/exporter.nf     (EXPORT_LIBRARY_MTX → GENERATE_SHARED_CATALOG → CALCULATE_SATURATION)
   └── modules/qc.nf               (FLAGSTAT, MOSDEPTH, NANOSTAT, MULTIQC)
 ```
 
