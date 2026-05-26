@@ -83,10 +83,13 @@ process ISOSEQ_CORRECT {
     path "versions.yml",                                      emit: versions
 
     script:
+    def wl = whitelist.name.endsWith('.xz') ? 'whitelist_isoseq.txt.gz' : whitelist
+    def decomp = whitelist.name.endsWith('.xz') ? "xz -dkc ${whitelist} | gzip -c > whitelist_isoseq.txt.gz" : ''
     """
+    ${decomp}
     isoseq correct \\
         -j ${task.cpus} \\
-        --barcodes ${whitelist} \\
+        --barcodes ${wl} \\
         ${fltnc_bam} \\
         ${meta.sample_id}_corrected.bam
 
