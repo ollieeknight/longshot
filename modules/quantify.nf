@@ -56,6 +56,7 @@ process SQANTI3_QC {
 
     script:
     def intropolis_arg = params.intropolis ? "--coverage ${params.intropolis}" : ""
+    def polya_peak_arg = params.polya_peak ? "--polyA_peak ${params.polya_peak}" : ""
     """
     sqanti3_qc.py \\
         --isoforms ${isoforms_gtf} \\
@@ -63,6 +64,7 @@ process SQANTI3_QC {
         --refFasta ${params.ref_fasta} \\
         --CAGE_peak ${params.cage_peaks} \\
         --polyA_motif_list ${params.polya_list} \\
+        ${polya_peak_arg} \\
         ${intropolis_arg} \\
         -t ${task.cpus} \\
         -d sqanti_qc \\
