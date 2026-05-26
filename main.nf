@@ -94,6 +94,19 @@ workflow {
             def idx_val = row.containsKey('10x_index') && row['10x_index'] ? row['10x_index'].trim() : ""
             def tenx_index = (idx_val == "" || idx_val.equalsIgnoreCase("null") || idx_val.equalsIgnoreCase("na") || idx_val.equalsIgnoreCase("none")) ? null : idx_val
 
+            // Dynamic Chemistry Detection (5prime vs 3prime)
+            def chem_val = row.containsKey('chemistry') && row.chemistry ? row.chemistry.trim() : ""
+            def chemistry = params.chemistry
+            if (chem_val != "" && !chem_val.equalsIgnoreCase("null") && !chem_val.equalsIgnoreCase("na") && !chem_val.equalsIgnoreCase("none")) {
+                chemistry = chem_val
+            } else if (tenx_index) {
+                if (tenx_index.startsWith("SI-TT") || tenx_index.startsWith("SI-TN")) {
+                    chemistry = "5prime"
+                } else if (tenx_index.startsWith("SI-GA") || tenx_index.startsWith("SI-NA")) {
+                    chemistry = "3prime"
+                }
+            }
+
             def meta = [
                 id:                  "${row.experiment}_${row.library_id}_${row.run_id}",
                 sample_id:           "${row.experiment}_${row.library_id}",
@@ -101,7 +114,8 @@ workflow {
                 library_id:          row.library_id,
                 run_id:              row.run_id,
                 shortread_barcodes:  sr_barcodes,
-                tenx_index:          tenx_index
+                tenx_index:          tenx_index,
+                chemistry:           chemistry
             ]
             [ meta, bam_file, stats_dir.exists() ? stats_dir : null ]
         }

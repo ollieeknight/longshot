@@ -81,4 +81,7 @@ workflow QUANTIFY {
                       .mix(SQANTI3_QC.out.versions)
                       .mix(SQANTI3_FILTER.out.versions)
                       .mix(ISOQUANT_QUANTIFY.out.versions)
+                      .mix(EXPORT_LIBRARY_MTX.out.versions)
+                      .mix(GENERATE_SHARED_CATALOG.out.versions)
+                      .mix(CALCULATE_SATURATION.out.versions)
 }

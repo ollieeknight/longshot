@@ -89,4 +89,8 @@ workflow ALIGN {
                     .mix(SAMTOOLS_SORT_CB.out.versions)
                     .mix(ISOSEQ_GROUPDEDUP.out.versions)
                     .mix(PBMM2_ALIGN.out.versions)
+                    .mix(SAMTOOLS_FLAGSTAT.out.versions)
+                    .mix(MOSDEPTH.out.versions)
+                    .mix(NANOSTAT.out.versions)
+                    .mix(GENERATE_CRAM.out.versions)
 }

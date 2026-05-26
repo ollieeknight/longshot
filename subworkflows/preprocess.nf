@@ -47,8 +47,7 @@ workflow PREPROCESS {
     ch_branched_segmented.standard
         .map { smrt_meta, segmented_bam, metas ->
             def meta = metas[0]
-            // Auto-detect 5' vs 3' kit from index name prefix (e.g. SI-GA maps to 5' kit)
-            def primers = (meta.tenx_index && meta.tenx_index.startsWith("SI-GA")) ? file(params.tenx_5kit_primers) : file(params.tenx_3kit_primers)
+            def primers = (meta.chemistry == "5prime") ? file(params.tenx_5kit_primers) : file(params.tenx_3kit_primers)
             [ meta, segmented_bam, primers ]
         }
         | LIMA_ISOSEQ
@@ -57,8 +56,10 @@ workflow PREPROCESS {
     // 1. Construct index-specific primers FASTA
     ch_branched_segmented.multiplexed
         .map { smrt_meta, segmented_bam, metas ->
+            def first_meta = metas[0]
+            def base_primers = (first_meta.chemistry == "5prime") ? file(params.tenx_5kit_primers) : file(params.tenx_3kit_primers)
             def mapping = metas.collect { "${it.library_id}:${it.tenx_index}" }.join(',')
-            [ smrt_meta, mapping ]
+            [ smrt_meta, mapping, base_primers ]
         }
         | CONSTRUCT_MULTIPLEX_PRIMERS
 
@@ -99,8 +100,12 @@ workflow PREPROCESS {
     flagstat     = SAMTOOLS_FLAGSTAT.out.flagstat
     versions     = Channel.empty()
                     .mix(SKERA_SPLIT.out.versions)
+                    .mix(DETECT_SAMPLE_INDICES.out.versions)
+                    .mix(CONSTRUCT_MULTIPLEX_PRIMERS.out.versions)
                     .mix(LIMA_ISOSEQ.out.versions)
                     .mix(LIMA_MULTIPLEX.out.versions)
+                    .mix(MERGE_INDEX_BAMS.out.versions)
                     .mix(ISOSEQ_TAG.out.versions)
                     .mix(ISOSEQ_REFINE.out.versions)
+                    .mix(SAMTOOLS_FLAGSTAT.out.versions)
 }

@@ -119,9 +119,10 @@ process ISOSEQ_TAG {
     path "versions.yml",                         emit: versions
 
     script:
+    def design_str = (meta.chemistry == "5prime") ? "16B-10U-13X-T" : "T-12U-16B"
     """
     isoseq tag \\
-        --design T-12U-16B \\
+        --design ${design_str} \\
         -j ${task.cpus} \\
         ${fl_bam} \\
         ${meta.id}_flt.bam
@@ -147,12 +148,13 @@ process ISOSEQ_REFINE {
     path "versions.yml",                           emit: versions
 
     script:
+    def refine_primers = (meta.chemistry == "5prime") ? file(params.tenx_5kit_primers) : file(params.tenx_3kit_primers)
     """
     isoseq refine \\
         --require-polya \\
         -j ${task.cpus} \\
         ${flt_bam} \\
-        ${params.tenx_3kit_primers} \\
+        ${refine_primers} \\
         ${meta.id}_fltnc.bam
 
     cat <<-END_VERSIONS > versions.yml
@@ -173,6 +175,7 @@ process DETECT_SAMPLE_INDICES {
 
     output:
     tuple val(meta), path("${meta.id}_index_report.tsv"), emit: index_report
+    path "versions.yml",                                   emit: versions
 
     script:
     """
@@ -249,6 +252,11 @@ if requested:
             sys.stderr.write(f'ERROR: Specified 10x index \"{req}\" was not detected in the raw reads. Please check your samplesheet index settings!\\n')
             sys.exit(1)
 "
+
+    cat <<-END_VERSIONS > versions.yml
+    "${task.process}":
+        samtools: \$(samtools --version | head -n1 | sed 's/samtools //')
+    END_VERSIONS
     """
 }
 
@@ -259,10 +267,11 @@ process CONSTRUCT_MULTIPLEX_PRIMERS {
     container "${params.container_samtools}"
 
     input:
-    tuple val(meta), val(index_mappings) // index_mappings is a list of [library_id, 10x_index]
+    tuple val(meta), val(index_mappings), path(base_primers)
 
     output:
     tuple val(meta), path("${meta.id}_multiplex_primers.fasta"), emit: primers
+    path "versions.yml",                                          emit: versions
 
     script:
     """
@@ -272,7 +281,7 @@ import csv
 
 # 1. Parse standard primers file to get 5p/3p core sequences
 # Auto-detect whether it is 5' kit or 3' kit
-primers_file = '${params.tenx_5kit_primers}'
+primers_file = '${base_primers}'
 is_5prime = '5kit' in primers_file.lower()
 
 p_5p = ''
@@ -327,6 +336,11 @@ with open(output_file, 'w') as fh:
             for idx, seq in enumerate(seqs):
                 fh.write(f'>{lib_id}_{idx+1}_3p\\n{p_3p}{seq}\\n')
 "
+
+    cat <<-END_VERSIONS > versions.yml
+    "${task.process}":
+        python: \$(python3 --version 2>&1 | grep -oP '(?<=Python )\\S+')
+    END_VERSIONS
     """
 }
 
@@ -341,10 +355,16 @@ process MERGE_INDEX_BAMS {
 
     output:
     tuple val(meta), path("${meta.library_id}_fl.bam"), emit: fl_bam
+    path "versions.yml",                                 emit: versions
 
     script:
     """
     samtools merge -f -@ ${task.cpus} ${meta.library_id}_fl.bam ${bams}
     samtools index -@ ${task.cpus} ${meta.library_id}_fl.bam
+
+    cat <<-END_VERSIONS > versions.yml
+    "${task.process}":
+        samtools: \$(samtools --version | head -n1 | sed 's/samtools //')
+    END_VERSIONS
     """
 }

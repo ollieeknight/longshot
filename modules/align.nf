@@ -37,6 +37,7 @@ process PREPARE_WHITELIST {
 
     output:
     tuple val(meta), path("${meta.sample_id}_whitelist.txt"), emit: whitelist
+    path "versions.yml",                                       emit: versions
 
     script:
     """
@@ -60,6 +61,11 @@ with open(output_file, 'w') as f_out:
     for bc in barcodes:
         f_out.write(rev_comp(bc) + '\\n')
 "
+
+    cat <<-END_VERSIONS > versions.yml
+    "${task.process}":
+        python: \$(python3 --version 2>&1 | grep -oP '(?<=Python )\\S+')
+    END_VERSIONS
     """
 }
 
@@ -227,6 +233,7 @@ process GENERATE_CRAM {
 
     output:
     tuple val(meta), path("${meta.sample_id}.cram"), path("${meta.sample_id}.cram.crai"), emit: cram
+    path "versions.yml",                                                                    emit: versions
 
     script:
     """
@@ -237,5 +244,10 @@ process GENERATE_CRAM {
         -o ${meta.sample_id}.cram \\
         ${bam}
     samtools index ${meta.sample_id}.cram
+
+    cat <<-END_VERSIONS > versions.yml
+    "${task.process}":
+        samtools: \$(samtools --version | head -n1 | sed 's/samtools //')
+    END_VERSIONS
     """
 }

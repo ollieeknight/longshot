@@ -8,6 +8,7 @@ process COLLECT_INSTRUMENT_STATS {
 
     output:
     path "instrument_stats/*", optional: true, emit: stats
+    path "versions.yml",                        emit: versions
 
     script:
     """
@@ -19,6 +20,11 @@ process COLLECT_INSTRUMENT_STATS {
             [ -f "\$f" ] && cp "\$f" instrument_stats/ || true
         done
     fi
+
+    cat <<-END_VERSIONS > versions.yml
+    "${task.process}":
+        samtools: \$(samtools --version | head -n1 | sed 's/samtools //')
+    END_VERSIONS
     """
 }
 
@@ -33,10 +39,16 @@ process SAMTOOLS_FLAGSTAT {
 
     output:
     path "${meta.sample_id}_${stage}.flagstat", emit: flagstat
+    path "versions.yml",                         emit: versions
 
     script:
     """
     samtools flagstat -@ ${task.cpus} ${bam} > ${meta.sample_id}_${stage}.flagstat
+
+    cat <<-END_VERSIONS > versions.yml
+    "${task.process}":
+        samtools: \$(samtools --version | head -n1 | sed 's/samtools //')
+    END_VERSIONS
     """
 }
 
@@ -53,6 +65,7 @@ process MOSDEPTH {
     output:
     tuple val(meta), path("${meta.sample_id}.*"),    emit: results
     path "${meta.sample_id}.mosdepth.summary.txt",   emit: summary
+    path "versions.yml",                              emit: versions
 
     script:
     """
@@ -62,6 +75,11 @@ process MOSDEPTH {
         --no-abbrev \\
         ${meta.sample_id} \\
         ${bam}
+
+    cat <<-END_VERSIONS > versions.yml
+    "${task.process}":
+        mosdepth: \$(mosdepth --version 2>&1 | grep -oP '(?<=mosdepth )\\S+')
+    END_VERSIONS
     """
 }
 
@@ -77,6 +95,7 @@ process NANOSTAT {
 
     output:
     path "${meta.sample_id}_NanoStats.txt", emit: stats
+    path "versions.yml",                    emit: versions
 
     script:
     """
@@ -85,6 +104,11 @@ process NANOSTAT {
         --name ${meta.sample_id} \\
         --outdir . \\
         -t ${task.cpus}
+
+    cat <<-END_VERSIONS > versions.yml
+    "${task.process}":
+        nanostat: \$(NanoStat --version 2>&1 | sed 's/NanoStat //')
+    END_VERSIONS
     """
 }
 

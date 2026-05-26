@@ -50,9 +50,10 @@ The pipeline expects a comma-separated samplesheet (`.csv`) with the following s
 | `run_id` | **Required** | SMRT cell run identifier | `m84094_260226_200655_s1` |
 | `bam` | **Required** | Path to the raw PacBio multiplexed BAM | `/data/run1.bam` |
 | `10x_index` | *Optional* | 10x sample index (for conditional demultiplexing) | `SI-GA-A1` |
+| `chemistry` | *Optional* | 10x chemistry kit type (`3prime` or `5prime`, auto-detected if empty) | `5prime` |
 | `shortread_barcodes` | *Optional* | Matched Illumina barcodes TSV path (for cell correction) | `libA_barcodes.tsv.gz` |
 
-* **Fallback behavior:** If `10x_index` or `shortread_barcodes` are empty, blank, or set to `NULL`, `null`, `NA`, or `none`, the pipeline automatically bypasses demultiplexing / custom whitelisting and falls back to static global defaults.
+* **Fallback behavior:** If `10x_index`, `chemistry`, or `shortread_barcodes` are empty, blank, or set to `NULL`, `null`, `NA`, or `none`, the pipeline automatically bypasses demultiplexing / custom whitelisting and falls back to static global defaults (with `chemistry` defaulting to `params.chemistry` which is `3prime`).
 
 ---
 
