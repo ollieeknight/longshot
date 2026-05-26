@@ -165,13 +165,37 @@ process ISOSEQ_REFINE {
 }
 
 
-process DETECT_SAMPLE_INDICES {
+process EXTRACT_BAM_HEADER_READS {
     tag "${meta.id}"
     label 'process_low'
     container "${params.container_samtools}"
 
     input:
-    tuple val(meta), path(raw_bam), val(requested_indices)
+    tuple val(meta), path(bam)
+
+    output:
+    tuple val(meta), path("${meta.id}_temp.fasta"), emit: fasta
+    path "versions.yml",                            emit: versions
+
+    script:
+    """
+    samtools view ${bam} | head -n 20000 | awk '{print ">read_"NR"\\n"\$10}' > ${meta.id}_temp.fasta
+
+    cat <<-END_VERSIONS > versions.yml
+    "${task.process}":
+        samtools: \$(samtools --version | head -n1 | sed 's/samtools //')
+    END_VERSIONS
+    """
+}
+
+
+process DETECT_SAMPLE_INDICES {
+    tag "${meta.id}"
+    label 'process_low'
+    container "${params.container_multiqc}"
+
+    input:
+    tuple val(meta), path(reads_fasta), val(requested_indices)
 
     output:
     tuple val(meta), path("${meta.id}_index_report.tsv"), emit: index_report
@@ -179,8 +203,6 @@ process DETECT_SAMPLE_INDICES {
 
     script:
     """
-    samtools view ${raw_bam} | head -n 20000 | awk '{print ">read_"NR"\\n"\$10}' > temp.fasta
-
     python3 -c "
 import os
 import csv
@@ -203,8 +225,8 @@ for f in os.listdir(index_dir):
                     index_db[index_id] = sequences
 
 reads = []
-if os.path.exists('temp.fasta'):
-    with open('temp.fasta', 'r') as fh:
+if os.path.exists('${reads_fasta}'):
+    with open('${reads_fasta}', 'r') as fh:
         current_seq = ''
         for line in fh:
             if line.startswith('>'):
@@ -255,7 +277,7 @@ if requested:
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":
-        samtools: \$(samtools --version | head -n1 | sed 's/samtools //')
+        python: \$(python3 --version 2>&1 | grep -oP '(?<=Python )\\S+')
     END_VERSIONS
     """
 }

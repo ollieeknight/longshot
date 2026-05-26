@@ -1,4 +1,4 @@
-include { SKERA_SPLIT; DETECT_SAMPLE_INDICES; CONSTRUCT_MULTIPLEX_PRIMERS; LIMA_ISOSEQ; LIMA_MULTIPLEX; MERGE_INDEX_BAMS; ISOSEQ_TAG; ISOSEQ_REFINE } from '../modules/preprocess'
+include { SKERA_SPLIT; EXTRACT_BAM_HEADER_READS; DETECT_SAMPLE_INDICES; CONSTRUCT_MULTIPLEX_PRIMERS; LIMA_ISOSEQ; LIMA_MULTIPLEX; MERGE_INDEX_BAMS; ISOSEQ_TAG; ISOSEQ_REFINE } from '../modules/preprocess'
 include { SAMTOOLS_FLAGSTAT } from '../modules/qc'
 
 
@@ -29,8 +29,14 @@ workflow PREPROCESS {
     ch_grouped_smrtcells
         .map { smrt_meta, bam, metas ->
             def idx_str = metas.collect { it.tenx_index }.findAll { it != null }.join(',')
-            [ smrt_meta, bam, idx_str ]
+            [ smrt_meta, idx_str ]
         }
+        .set { ch_idx_mapping }
+
+    EXTRACT_BAM_HEADER_READS(ch_grouped_smrtcells.map { smrt_meta, bam, metas -> [ smrt_meta, bam ] })
+
+    EXTRACT_BAM_HEADER_READS.out.fasta
+        .join(ch_idx_mapping)
         | DETECT_SAMPLE_INDICES
 
     // ── Join split BAM with grouped metadata to branch on demultiplexing ──────
@@ -100,6 +106,7 @@ workflow PREPROCESS {
     flagstat     = SAMTOOLS_FLAGSTAT.out.flagstat
     versions     = Channel.empty()
                     .mix(SKERA_SPLIT.out.versions)
+                    .mix(EXTRACT_BAM_HEADER_READS.out.versions)
                     .mix(DETECT_SAMPLE_INDICES.out.versions)
                     .mix(CONSTRUCT_MULTIPLEX_PRIMERS.out.versions)
                     .mix(LIMA_ISOSEQ.out.versions)
