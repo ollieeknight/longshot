@@ -30,7 +30,7 @@ process SAMTOOLS_MERGE_FLTNC {
 process PREPARE_WHITELIST {
     tag "${meta.sample_id}"
     label 'process_low'
-    container "${params.container_seqkit}"
+    container "${params.container_multiqc}"
 
     input:
     tuple val(meta), path(sr_barcodes)

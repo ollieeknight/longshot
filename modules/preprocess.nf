@@ -57,7 +57,6 @@ process LIMA_ISOSEQ {
     fi
     find . -maxdepth 1 -name "fl.*.bam" ! -name "fl.bam" ! -name "*unassigned*" \
         | xargs -I{} mv {} ${meta.id}_fl.bam
-    samtools index ${meta.id}_fl.bam
 
     # Rename lima reports
     for f in fl.lima.*; do
@@ -286,7 +285,7 @@ if requested:
 process CONSTRUCT_MULTIPLEX_PRIMERS {
     tag "${meta.id}"
     label 'process_low'
-    container "${params.container_samtools}"
+    container "${params.container_multiqc}"
 
     input:
     tuple val(meta), val(index_mappings), path(base_primers)
