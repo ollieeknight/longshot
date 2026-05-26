@@ -2,7 +2,7 @@ process ISOQUANT_DISCOVERY {
     tag "${experiment}"
     label 'process_ultra'
     container "${params.container_isoquant}"
-    publishDir "${params.outdir}/${experiment}/joint/transcript_model", mode: 'copy'
+    publishDir { "${params.outdir}/${experiment}/joint/transcript_model" }, mode: 'copy'
 
     input:
     tuple val(experiment), val(metas), path(bams), path(bais)
@@ -42,7 +42,7 @@ process SQANTI3_QC {
     tag "${experiment}"
     label 'process_high'
     container "${params.container_sqanti3}"
-    publishDir "${params.outdir}/${experiment}/joint/sqanti3", mode: 'copy',
+    publishDir { "${params.outdir}/${experiment}/joint/sqanti3" }, mode: 'copy',
                saveAs: { fn -> fn.startsWith("sqanti_qc/") ? fn.replace("sqanti_qc/", "") : fn }
 
     input:
@@ -83,7 +83,7 @@ process SQANTI3_FILTER {
     tag "${experiment}"
     label 'process_medium'
     container "${params.container_sqanti3}"
-    publishDir "${params.outdir}/${experiment}/joint/sqanti3", mode: 'copy',
+    publishDir { "${params.outdir}/${experiment}/joint/sqanti3" }, mode: 'copy',
                saveAs: { fn -> fn.startsWith("sqanti_filter/") ? fn.replace("sqanti_filter/", "") : fn }
 
     input:
@@ -117,7 +117,7 @@ process ISOQUANT_QUANTIFY {
     tag "${meta.sample_id}"
     label 'process_high'
     container "${params.container_isoquant}"
-    publishDir "${params.outdir}/${meta.experiment}/${meta.library_id}/counts", mode: 'copy',
+    publishDir { "${params.outdir}/${meta.experiment}/${meta.library_id}/counts" }, mode: 'copy',
                saveAs: { fn -> fn.startsWith("isoquant_out/") ? fn.replaceFirst("isoquant_out/[^/]+/", "") : fn }
 
     input:

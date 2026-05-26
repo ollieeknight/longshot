@@ -226,7 +226,7 @@ process GENERATE_CRAM {
     tag "${meta.sample_id}"
     label 'process_low'
     container "${params.container_samtools}"
-    publishDir "${params.outdir}/${meta.experiment}/${meta.library_id}/alignment", mode: 'copy'
+    publishDir { "${params.outdir}/${meta.experiment}/${meta.library_id}/alignment" }, mode: 'copy'
 
     input:
     tuple val(meta), path(bam), path(bai)

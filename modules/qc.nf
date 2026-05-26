@@ -57,7 +57,7 @@ process MOSDEPTH {
     tag "${meta.sample_id}"
     label 'process_low'
     container "${params.container_mosdepth}"
-    publishDir "${params.outdir}/${meta.experiment}/${meta.library_id}/qc/mosdepth", mode: 'copy'
+    publishDir { "${params.outdir}/${meta.experiment}/${meta.library_id}/qc/mosdepth" }, mode: 'copy'
 
     input:
     tuple val(meta), path(bam), path(bai)
@@ -88,7 +88,7 @@ process NANOSTAT {
     tag "${meta.sample_id}"
     label 'process_low'
     container "${params.container_nanostat}"
-    publishDir "${params.outdir}/${meta.experiment}/${meta.library_id}/qc/nanostat", mode: 'copy'
+    publishDir { "${params.outdir}/${meta.experiment}/${meta.library_id}/qc/nanostat" }, mode: 'copy'
 
     input:
     tuple val(meta), path(bam), path(bai)
