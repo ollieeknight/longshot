@@ -52,6 +52,7 @@ process SQANTI3_QC {
     tuple val(experiment), path("sqanti_qc/${experiment}_classification.txt"),
                            path("sqanti_qc/${experiment}_corrected.fasta"),
                            path("sqanti_qc/${experiment}_corrected.gtf"),   emit: sqanti_results
+    path "sqanti_qc/${experiment}_junctions.txt",                           emit: junctions
     path "versions.yml",                                                    emit: versions
 
     script:
@@ -108,6 +109,42 @@ process SQANTI3_FILTER {
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":
         sqanti3: \$(sqanti3_filter.py --version 2>&1 | grep -oP '\\d+\\.\\d+\\.\\d+' | head -1)
+    END_VERSIONS
+    """
+}
+
+
+process SQANTI3_RESCUE {
+    tag "${experiment}"
+    label 'process_medium'
+    container "${params.container_sqanti3}"
+    publishDir { "${params.outdir}/${experiment}/joint/sqanti3" }, mode: 'copy',
+               saveAs: { fn -> fn.startsWith("sqanti_rescue/") ? fn.replace("sqanti_rescue/", "") : fn }
+
+    input:
+    tuple val(experiment), path(filter_classification), path(corrected_fasta), path(filtered_gtf)
+
+    output:
+    tuple val(experiment), path("sqanti_rescue/${experiment}_rescued.gtf"),   emit: rescued_gtf
+    tuple val(experiment), path("sqanti_rescue/${experiment}_rescued.fasta"), emit: rescued_fasta
+    path "sqanti_rescue/${experiment}_rescue_inclusion_list.tsv",             emit: inclusion_list
+    path "versions.yml",                                                      emit: versions
+
+    script:
+    """
+    sqanti3_rescue.py rules \\
+        --filter_class ${filter_classification} \\
+        --corrected_isoforms_fasta ${corrected_fasta} \\
+        --filtered_isoforms_gtf ${filtered_gtf} \\
+        -rg ${params.ref_gtf} \\
+        -rf ${params.ref_fasta} \\
+        --mode automatic \\
+        -d sqanti_rescue \\
+        -o ${experiment}
+
+    cat <<-END_VERSIONS > versions.yml
+    "${task.process}":
+        sqanti3: \$(sqanti3_rescue.py --version 2>&1 | grep -oP '\\d+\\.\\d+\\.\\d+' | head -1)
     END_VERSIONS
     """
 }

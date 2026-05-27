@@ -72,7 +72,6 @@ process MOSDEPTH {
     mosdepth \\
         --threads ${task.cpus} \\
         --fast-mode \\
-        --no-abbrev \\
         ${meta.sample_id} \\
         ${bam}
 

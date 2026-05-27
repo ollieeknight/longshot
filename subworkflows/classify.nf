@@ -2,6 +2,7 @@ include { CB_SUFFIX_INJECT   } from '../modules/align'
 include { ISOQUANT_DISCOVERY } from '../modules/quantify'
 include { SQANTI3_QC         } from '../modules/quantify'
 include { SQANTI3_FILTER     } from '../modules/quantify'
+include { SQANTI3_RESCUE     } from '../modules/quantify'
 
 workflow CLASSIFY {
     take:
@@ -34,11 +35,20 @@ workflow CLASSIFY {
     // ── Step 4: Joint transcript model discovery ──────────────────────────────
     ISOQUANT_DISCOVERY(ch_experiment_bams)
 
-    // ── Step 5: SQANTI3 QC + Filter ───────────────────────────────────────────
+    // ── Step 5: SQANTI3 QC + Filter + Rescue ─────────────────────────────────
     SQANTI3_QC(ISOQUANT_DISCOVERY.out.transcript_gtf)
     SQANTI3_FILTER(SQANTI3_QC.out.sqanti_results)
 
+    // Join filter classification, corrected FASTA (from QC), and filtered GTF for rescue
+    SQANTI3_FILTER.out.filtered_class
+        .join(SQANTI3_QC.out.sqanti_results.map { exp, cls, fa, gtf -> [exp, fa] })
+        .join(SQANTI3_FILTER.out.filtered_gtf)
+        .map { exp, filter_cls, corr_fa, filt_gtf -> [exp, filter_cls, corr_fa, filt_gtf] }
+        | SQANTI3_RESCUE
+
     emit:
+    rescued_gtf     = SQANTI3_RESCUE.out.rescued_gtf
+    rescued_fasta   = SQANTI3_RESCUE.out.rescued_fasta
     filtered_gtf    = SQANTI3_FILTER.out.filtered_gtf
     filtered_fasta  = SQANTI3_FILTER.out.filtered_fasta
     filtered_class  = SQANTI3_FILTER.out.filtered_class
@@ -48,4 +58,5 @@ workflow CLASSIFY {
                       .mix(ISOQUANT_DISCOVERY.out.versions)
                       .mix(SQANTI3_QC.out.versions)
                       .mix(SQANTI3_FILTER.out.versions)
+                      .mix(SQANTI3_RESCUE.out.versions)
 }

@@ -147,10 +147,10 @@ workflow {
     CLASSIFY(ALIGN.out.aligned_bam)
 
     // ── 6. Per-Library Quantification ────────────────────────────────────────
-    QUANTIFY(ALIGN.out.aligned_bam, CLASSIFY.out.filtered_gtf)
+    QUANTIFY(ALIGN.out.aligned_bam, CLASSIFY.out.rescued_gtf)
 
     // ── 7. Matrix Export & Saturation Curves ─────────────────────────────────
-    EXPORT(QUANTIFY.out.counts_dir, CLASSIFY.out.filtered_class, CLASSIFY.out.filtered_gtf)
+    EXPORT(QUANTIFY.out.counts_dir, CLASSIFY.out.filtered_class, CLASSIFY.out.rescued_gtf)
 
     // ── 8. Aggregate MultiQC ──────────────────────────────────────────────────
     Channel.empty()
