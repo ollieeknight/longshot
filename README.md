@@ -1,115 +1,88 @@
-# `longshot` 🚀
+# longshot
 
-> **A Production-Grade Nextflow DSL2 Pipeline for Single-Cell Long-Read Transcriptomics**
-
-`longshot` is an end-to-end, automated Nextflow pipeline designed for processing PacBio HiFi MAS-seq single-cell transcriptomics data. It takes you seamlessly from raw instrument multiplexed runs to fully annotated, ready-to-import Single-Cell count matrices and cohort-wide structural catalogs.
+A Nextflow DSL2 pipeline for PacBio HiFi MAS-seq single-cell long-read transcriptomics, taking raw multiplexed SMRT cell BAMs and producing per-library count matrices with a cohort-wide isoform catalog.
 
 ---
 
-## 🌟 Key Features & Highlights
+## What it does
 
-### 🛡️ 1. Intelligent Pre-Flight Index Detector & Sanity Guard
-Before launching heavy, expensive HPC compute jobs, `longshot` runs an ultra-fast **pre-flight index detector** (`DETECT_SAMPLE_INDICES`):
-* Downsamples your raw BAM file to the first 20,000 reads (in seconds).
-* Scans the cDNA adapter regions to empirically verify the presence of your specified 10x sample indices.
-* **Wrong Index Guard (Fail-Fast):** Halts immediately and throws a descriptive error if the specified index (e.g., `SI-GA-A1`) is absent, preventing wasted cluster hours due to metadata typos.
-* **Single-Index Auto-Override (Read Recovery):** If multiple indices are specified in the samplesheet but the detector finds that >99.5% of reads belong to a single index, it **automatically bypasses index demultiplexing** and runs standard cDNA trimming to maximize read recovery.
+**Preprocessing** — detects and validates 10x sample indices against a downsampled read set before committing to full demultiplexing. Runs SKERA splitting once per SMRT cell, builds chemistry-aware primer FASTAs, demultiplexes with lima, and merges constituent BAMs per library.
 
-### 🔀 2. Automated & Conditional 10x Index Demultiplexing
-If a raw flowcell contains multiple verified indices:
-* The pipeline groups the run by BAM path to run `SKERA_SPLIT` **exactly once per SMRT cell**, saving massive processing overhead.
-* Nextflow dynamically builds a custom multiplexed primers FASTA containing all 4 constituent barcode sequences per index.
-* **Chemistry-Aware Kit Selection:** Automatically detects 5' GEX vs 3' GEX kits and modifies the correct primer (`5p` or `3p`) accordingly.
-* Runs `lima` to separate the multiplexed libraries, and automatically merges the constituent index BAMs per library using `samtools merge`.
+**Barcode correction** — if paired Illumina barcodes are provided, strips gem-group suffixes, reverse-complements sequences for PacBio orientation, and uses the resulting empirical whitelist for `isoseq correct`. Falls back to the static 10x whitelist otherwise.
 
-### 🧪 3. Paired Short-Read Barcode Correction (Empirical Whitelist)
-Correcting cell barcodes against a static 3-million possible barcodes list can introduce noise by rescuing ambient reads to empty droplets. If you have paired short-read (Illumina) data:
-* Provide the CellRanger `barcodes.tsv.gz` path in your samplesheet.
-* The pipeline **auto-strips the `-1` gem-group suffix** and **reverse-complements the sequences** to match PacBio's sequencing chemistry orientation completely automatically.
-* It uses this high-confidence empirical list for `isoseq correct`, strictly keeping reads belonging to genuine cells.
-* If no short-read barcodes are specified, it gracefully falls back to the global static 10x whitelist.
+**Alignment and deduplication** — sorts by cell barcode, deduplicates with `isoseq groupdedup`, and aligns to GRCh38 with `pbmm2`.
 
-### 📊 4. CellRanger-Style Library QC Exporter (Features Enriched with SQANTI3)
-* Exports counts in standard 10x-style format (`matrix.mtx.gz`, `barcodes.tsv.gz`, `features.tsv.gz`) per library for both **gene-level** and **transcript-level** matrices.
-* **SQANTI3 Metadata Integration:** For transcripts, we enrich the `features.tsv.gz` by mapping Ensembl IDs to **Gene Symbols** and merging each transcript directly with its **SQANTI3 structural category** (e.g. `full-splice_match`, `novel_in_catalog`), allowing you to load counts directly into Seurat using standard `Read10X()` and perform instant downstream transcript-QC in R!
-* **Seurat Safety:** Replaces underscores (`_`) with dashes (`-`) in transcript IDs to prevent Seurat from crashing.
+**Transcript discovery and QC** — performs joint isoform discovery across all libraries with IsoQuant, runs SQANTI3 QC and rules-based filtering, then rescues valid isoforms discarded by the filter (automatic mode).
 
-### 📂 5. Cohort-Wide Shared Catalog
-* Because `longshot` performs **joint isoform discovery** across all libraries, all libraries automatically share a unified structural catalog.
-* Generates `shared_isoform_catalog.tsv.gz` (cleaned of NA values that crash Pigeon/Seurat) and `shared_isoform_map.tsv.gz` linking transcript IDs to gene names, gene symbols, and structural categories across all donors.
+**Quantification** — re-runs IsoQuant per library against the rescued transcript model to produce per-cell counts.
 
-### 📉 6. Sequencing Saturation Curves
-* Downsamples IsoQuant read assignments (`*.read_to_transcript.tsv`) in Python in seconds to compute saturation rates (for genes, isoforms, cells, and UMIs) at 10%, 25%, 50%, 75%, and 100% sequencing depth. Saturation plots are natively integrated into the final **MultiQC report**.
+**Export** — writes gene-level and transcript-level matrices in 10x format (`matrix.mtx.gz`, `barcodes.tsv.gz`, `features.tsv.gz`). Transcript features are annotated with SQANTI3 structural categories for direct use with `Read10X()`. Generates a cohort-wide shared isoform catalog and saturation curves at multiple depth fractions.
 
 ---
 
-## 🛠️ Pipeline Architecture
-
-```
-main.nf
-  ├── subworkflows/preprocess.nf  →  modules/preprocess.nf  (SKERA → DETECT_INDEX → DYNAMIC_PRIMERS → LIMA → MERGE → TAG → REFINE)
-  ├── subworkflows/align.nf       →  modules/align.nf        (MERGE → PREP_WHITELIST → CORRECT → SORT_CB → DEDUP → PBMM2 → CRAM)
-  ├── subworkflows/classify.nf    →  modules/quantify.nf     (CB_SUFFIX → ISOQUANT_DISC → SQANTI3_QC → SQANTI3_FILTER)
-  ├── subworkflows/quantify.nf    →  modules/quantify.nf     (ISOQUANT_QUANTIFY)
-  ├── subworkflows/export.nf      →  modules/exporter.nf     (EXPORT_LIBRARY_MTX → GENERATE_SHARED_CATALOG → CALCULATE_SATURATION)
-  └── modules/qc.nf               (FLAGSTAT, MOSDEPTH, NANOSTAT, MULTIQC)
-```
-
----
-
-## 🚀 Quick Start
-
-### 1. Configure your `samplesheet.csv`
-The samplesheet is fully generalized to handle standard runs, multiplexed runs, and custom short-read whitelists:
+## Samplesheet
 
 ```csv
-experiment,library_id,10x_index,run_id,bam,shortread_barcodes
-nk_activation,libA,SI-GA-A1,m84094_260226_200655_s1,/data/run1.bam,/data/illumina/libA/barcodes.tsv.gz
-nk_activation,libB,SI-GA-A2,m84094_260226_200655_s1,/data/run1.bam,/data/illumina/libB/barcodes.tsv.gz
-nk_activation,libC,SI-GA-A3,m84094_260226_220949_s1,/data/run2.bam,NULL
-nk_activation,libD,SI-GA-A4,m84094_260226_220949_s1,/data/run2.bam,
+experiment,library_id,run_id,bam,10x_index,chemistry,shortread_barcodes
+nk_cohort,libA,m84094_260226_200655_s1,/data/run1.bam,SI-GA-A1,3prime,/data/illumina/libA/barcodes.tsv.gz
+nk_cohort,libB,m84094_260226_200655_s1,/data/run1.bam,SI-GA-A2,3prime,/data/illumina/libB/barcodes.tsv.gz
+nk_cohort,libC,m84094_260226_220949_s1,/data/run2.bam,SI-GA-A3,,NULL
 ```
 
-### 2. Run the Pipeline on your HPC (SLURM + Apptainer)
-Launch the pipeline with your HPC profile:
+`10x_index`, `chemistry`, and `shortread_barcodes` are optional. Set to empty or `NULL` to use defaults (`chemistry` falls back to `params.chemistry`, shortread correction is skipped).
+
+---
+
+## Running
+
+Dry run (checks channel wiring without submitting jobs):
+
+```bash
+nextflow run main.nf -preview -profile standard --samplesheet assets/example_samplesheet.csv
+```
+
+Production (SLURM + Apptainer):
+
 ```bash
 nextflow run main.nf \
     -profile slurm \
-    --samplesheet samplesheet.csv \
-    --ref_fasta reference/GRCh38.fasta \
-    --ref_gtf reference/gencode.v39.gtf \
-    --cage_peaks reference/refTSS.bed \
-    --polya_list reference/polyA.list.txt \
-    --container_sqanti3 path/to/sqanti3_latest.sif
+    --samplesheet samplesheet.csv
+```
+
+Reference files are hardcoded in the `slurm` profile in `nextflow.config`. Override any at the command line with `--ref_fasta`, `--ref_gtf`, `--cage_peaks`, `--polya_list`, etc.
+
+---
+
+## Output structure
+
+```
+results/
+  {experiment}/
+    joint/
+      transcript_model/   — IsoQuant discovery GTF
+      sqanti3/            — QC reports, filter results, rescued GTF and FASTA
+    {library_id}/
+      counts/             — IsoQuant per-library output
+      qc_export/
+        gene/             — matrix.mtx.gz, barcodes.tsv.gz, features.tsv.gz
+        transcript/       — same, features annotated with SQANTI3 categories
+      qc/
+        mosdepth/
+        nanostat/
+        flagstat/
+  multiqc/                — aggregated QC including saturation curves
 ```
 
 ---
 
-## 📂 Output Directory Structure
-
-The final results are highly organized and structured for immediate downstream analysis in R/Seurat:
+## Pipeline structure
 
 ```
-results/
-  ├── NK_cohort/
-  │   ├── joint/
-  │   │   ├── shared_isoform_catalog.tsv.gz    ← Cleaned SQANTI3 Class
-  │   │   └── shared_isoform_map.tsv.gz        ← Unified Gene-Transcript Map
-  │   │
-  │   ├── libA/
-  │   │   ├── qc_export/                       ← Ready for R Seurat import
-  │   │   │   ├── gene/
-  │   │   │   │   ├── matrix.mtx.gz
-  │   │   │   │   ├── barcodes.tsv.gz
-  │   │   │   │   └── features.tsv.gz
-  │   │   │   └── transcript/
-  │   │   │       ├── matrix.mtx.gz
-  │   │   │       ├── barcodes.tsv.gz
-  │   │   │       └── features.tsv.gz          ← Enriched with SQANTI3 categories
-  │   │   │
-  │   │   └── qc/
-  │   │       └── libA_saturation.tsv          ← Rarefaction statistics
-  │   │
-  │   └── [other libraries]
-  └── multiqc/                                 ← Now includes saturation graphs
+main.nf
+  subworkflows/preprocess.nf   — SKERA, index detection, lima, merge, tag, refine
+  subworkflows/align.nf        — whitelist prep, isoseq correct, dedup, pbmm2, CRAM
+  subworkflows/classify.nf     — CB suffix injection, IsoQuant discovery, SQANTI3 QC/filter/rescue
+  subworkflows/quantify.nf     — per-library IsoQuant quantification
+  subworkflows/export.nf       — MTX export, shared catalog, saturation curves
+  modules/qc.nf                — flagstat, mosdepth, NanoStat, MultiQC
 ```

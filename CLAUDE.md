@@ -4,27 +4,21 @@ Welcome to the `longshot` (formerly `longreadr`) PacBio single-cell long-read tr
 
 ---
 
-## 🚀 Execution & Command Reference
+## Execution Environment
 
-### 1. Dry Run / Testing
-Always perform a preflight dry run to check imports and channel structure before submitting to the cluster:
+**All pipeline runs happen on the BIH HPC cluster (SLURM + Apptainer). Never run locally on macOS** — reference data and containers are only available on the cluster. The `standard` profile exists only for Nextflow syntax/channel validation via `-preview`; it does not run any actual processes.
+
+---
+
+## Execution & Command Reference
+
+### 1. Dry Run / Syntax Check
+Validates imports and channel structure on the head node. No jobs submitted, no containers needed:
 ```bash
 nextflow run main.nf -preview -profile standard --samplesheet assets/example_samplesheet.csv
 ```
 
-### 2. Standard Local Profile (Test Runs)
-Runs the pipeline locally (processes are executed sequentially on the local machine):
-```bash
-nextflow run main.nf \
-    -profile standard \
-    --samplesheet samplesheet.csv \
-    --ref_fasta reference/GRCh38.fasta \
-    --ref_gtf reference/gencode.gtf \
-    --cage_peaks reference/refTSS.bed \
-    --polya_list reference/polyA.list.txt
-```
-
-### 3. Production HPC Profile (SLURM + Apptainer)
+### 2. Production HPC Profile (SLURM + Apptainer)
 Submits processes to the SLURM scheduler and executes inside Apptainer containers:
 ```bash
 nextflow run main.nf \
