@@ -101,8 +101,8 @@ process NANOSTAT {
     NanoStat \\
         --bam ${bam} \\
         --name ${meta.sample_id} \\
-        --outdir . \\
-        -t ${task.cpus}
+        -t ${task.cpus} \\
+        > ${meta.sample_id}_NanoStats.txt
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":
