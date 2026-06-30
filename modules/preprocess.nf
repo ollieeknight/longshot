@@ -63,7 +63,7 @@ process LIMA_ISOSEQ {
     label 'process_high'
     container "${params.container_lima}"
     publishDir { "${params.outdir}/${meta.experiment}/${meta.library_id}/qc/lima" }, mode: 'copy',
-               pattern: "${meta.id}_fl.lima.*"
+               pattern: '${meta.id}_fl.lima.*'
 
     input:
     tuple val(meta), path(segmented_bam), path(primers)
@@ -116,7 +116,7 @@ process LIMA_MULTIPLEX {
     label 'process_high'
     container "${params.container_lima}"
     publishDir { "${params.outdir}/${meta.experiment}/${meta.id}/qc/lima" }, mode: 'copy',
-               pattern: "${meta.id}_fl.lima.*"
+               pattern: '${meta.id}_fl.lima.*'
 
     input:
     tuple val(meta), path(segmented_bam), path(primers)
@@ -187,7 +187,7 @@ process ISOSEQ_REFINE {
     label 'process_high'
     container "${params.container_isoseq}"
     publishDir { "${params.outdir}/${meta.experiment}/${meta.library_id}/qc/isoseq_refine" }, mode: 'copy',
-               pattern: "${meta.id}_fltnc.{filter_summary.json,report.csv}"
+               pattern: '${meta.id}_fltnc.{filter_summary.json,report.csv}'
 
     input:
     tuple val(meta), path(flt_bam)
