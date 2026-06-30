@@ -2,6 +2,7 @@ process COLLECT_INSTRUMENT_STATS {
     tag "${meta.id}"
     label 'process_low'
     container "${params.container_samtools}"
+    publishDir { "${params.outdir}/${meta.id}/qc/instrument" }, mode: 'copy'
 
     input:
     tuple val(meta), path(stats_dir)
@@ -33,6 +34,7 @@ process SAMTOOLS_FLAGSTAT {
     tag "${meta.sample_id} (${stage})"
     label 'process_low'
     container "${params.container_samtools}"
+    publishDir { "${params.outdir}/${meta.experiment ?: meta.id}/qc/flagstat" }, mode: 'copy'
 
     input:
     tuple val(meta), val(stage), path(bam)
@@ -53,60 +55,30 @@ process SAMTOOLS_FLAGSTAT {
 }
 
 
-process MOSDEPTH {
-    tag "${meta.sample_id}"
+process CRAMINO {
+    tag "${meta.sample_id ?: meta.id} (${stage})"
     label 'process_low'
-    container "${params.container_mosdepth}"
-    publishDir { "${params.outdir}/${meta.experiment}/${meta.library_id}/qc/mosdepth" }, mode: 'copy'
+    container "${params.container_cramino}"
+    publishDir { "${params.outdir}/${meta.experiment ?: meta.id}/qc/cramino" }, mode: 'copy'
 
     input:
-    tuple val(meta), path(bam), path(bai)
+    tuple val(meta), val(stage), val(extra_flags), path(bam)
 
     output:
-    tuple val(meta), path("${meta.sample_id}.*"),    emit: results
-    path "${meta.sample_id}.mosdepth.summary.txt",   emit: summary
-    path "versions.yml",                              emit: versions
+    path "${meta.sample_id ?: meta.id}_${stage}.cramino.txt", emit: stats
+    path "versions.yml",                            emit: versions
 
     script:
     """
-    mosdepth \\
+    cramino \\
         --threads ${task.cpus} \\
-        --fast-mode \\
-        ${meta.sample_id} \\
-        ${bam}
+        ${extra_flags} \\
+        ${bam} \\
+        > ${meta.sample_id}_${stage}.cramino.txt
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":
-        mosdepth: \$(mosdepth --version 2>&1 | grep -oP '(?<=mosdepth )\\S+')
-    END_VERSIONS
-    """
-}
-
-
-process NANOSTAT {
-    tag "${meta.sample_id}"
-    label 'process_low'
-    container "${params.container_nanostat}"
-    publishDir { "${params.outdir}/${meta.experiment}/${meta.library_id}/qc/nanostat" }, mode: 'copy'
-
-    input:
-    tuple val(meta), path(bam), path(bai)
-
-    output:
-    path "${meta.sample_id}_NanoStats.txt", emit: stats
-    path "versions.yml",                    emit: versions
-
-    script:
-    """
-    NanoStat \\
-        --bam ${bam} \\
-        --name ${meta.sample_id} \\
-        -t ${task.cpus} \\
-        > ${meta.sample_id}_NanoStats.txt
-
-    cat <<-END_VERSIONS > versions.yml
-    "${task.process}":
-        nanostat: \$(NanoStat --version 2>&1 | sed 's/NanoStat //')
+        cramino: \$(cramino --version 2>&1 | sed 's/cramino //')
     END_VERSIONS
     """
 }

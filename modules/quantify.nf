@@ -22,6 +22,9 @@ process ISOQUANT_DISCOVERY {
         --process_only_chr ${chrs} \\
         --bam ${bam_args} \\
         --data_type pacbio \\
+        --fl_data \\
+        --check_canonical \\
+        --count_exons \\
         --barcoded_bam \\
         --barcode_tag CB \\
         --umi_tag XM \\
@@ -145,6 +148,251 @@ process SQANTI3_RESCUE {
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":
         sqanti3: \$(sqanti3_rescue.py --version 2>&1 | grep -oP '\\d+\\.\\d+\\.\\d+' | head -1)
+    END_VERSIONS
+    """
+}
+
+
+// ── Plan 03: IsoQuant chromosome sharding ────────────────────────────────────
+
+process ISOQUANT_DISCOVERY_SHARD {
+    tag "${experiment} shard${shard.id} [${shard.chrs.join(',')}]"
+    label 'process_high'
+    // ponytail: downgraded from process_ultra — each shard is ~1/17th the data
+    container "${params.container_isoquant}"
+
+    input:
+    tuple val(experiment), val(shard), path(bams), path(bais)
+
+    output:
+    tuple val(experiment), val(shard),
+          path("isoquant_out/${experiment}_shard${shard.id}/${experiment}_shard${shard.id}.transcript_models.gtf"),
+          emit: shard_gtf
+    path "versions.yml", emit: versions
+
+    script:
+    def chr_list = shard.chrs.join(' ')
+    def bam_args = bams instanceof List ? bams.join(' ') : bams.toString()
+    def prefix   = "${experiment}_shard${shard.id}"
+    """
+    isoquant \\
+        --reference ${params.ref_fasta} \\
+        --genedb ${params.ref_gtf} \\
+        --complete_genedb \\
+        --process_only_chr ${chr_list} \\
+        --bam ${bam_args} \\
+        --data_type pacbio \\
+        --fl_data \\
+        --check_canonical \\
+        --count_exons \\
+        --barcoded_bam \\
+        --barcode_tag CB \\
+        --umi_tag XM \\
+        --read_group barcode \\
+        --threads ${task.cpus} \\
+        --prefix ${prefix} \\
+        --output isoquant_out
+
+    cat <<-END_VERSIONS > versions.yml
+    "${task.process}":
+        isoquant: \$(isoquant --version 2>&1 | grep -oP '\\d+\\.\\d+\\.\\d+' | head -1)
+    END_VERSIONS
+    """
+}
+
+
+process MERGE_SHARD_GTFS {
+    tag "${experiment}"
+    label 'process_low'
+    container "${params.container_multiqc}"
+    publishDir { "${params.outdir}/${experiment}/joint/transcript_model" }, mode: 'copy'
+
+    input:
+    tuple val(experiment), val(shards), path(gtfs)
+
+    output:
+    tuple val(experiment), path("${experiment}.transcript_models.gtf"), emit: transcript_gtf
+    path "versions.yml", emit: versions
+
+    script:
+    """
+    python3 -c "
+import re, sys
+
+gtf_files   = sorted('${gtfs}'.split())
+out_file    = '${experiment}.transcript_models.gtf'
+header_seen = set()
+entry_seen  = set()
+
+with open(out_file, 'w') as out:
+    for gtf in gtf_files:
+        with open(gtf) as f:
+            for line in f:
+                if line.startswith('#'):
+                    if line not in header_seen:
+                        header_seen.add(line)
+                        out.write(line)
+                    continue
+
+                chrom = line.split('\\t')[0]
+
+                # Prefix novel IDs with chromosome name to prevent collision across shards
+                line = re.sub(r'(gene_id \\\"novel_gene_)',       r'\\g<1>' + chrom + r'_', line)
+                line = re.sub(r'(transcript_id \\\"novel_transcript_)', r'\\g<1>' + chrom + r'_', line)
+                line = re.sub(r'(gene_name \\\"novel_gene_)',      r'\\g<1>' + chrom + r'_', line)
+
+                key = line.strip()
+                if key not in entry_seen:
+                    entry_seen.add(key)
+                    out.write(line)
+"
+
+    cat <<-END_VERSIONS > versions.yml
+    "${task.process}":
+        python: \$(python3 --version 2>&1 | grep -oP '(?<=Python )\\S+')
+    END_VERSIONS
+    """
+}
+
+
+// ── Plan 03 Part B: SQANTI3 chunking ─────────────────────────────────────────
+
+process SQANTI3_SPLIT_GTF {
+    tag "${experiment} (${params.sqanti_chunks} chunks)"
+    label 'process_low'
+    container "${params.container_multiqc}"
+
+    input:
+    tuple val(experiment), path(gtf)
+
+    output:
+    tuple val(experiment), path("chunk_*.gtf"), emit: chunks
+    path "versions.yml",                        emit: versions
+
+    script:
+    """
+    python3 -c "
+import math
+
+chunks = ${params.sqanti_chunks}
+header_lines = []
+transcript_blocks = []
+current_block = []
+
+with open('${gtf}') as f:
+    for line in f:
+        if line.startswith('#'):
+            header_lines.append(line)
+            continue
+        if '\\t' not in line:
+            continue
+        fields = line.split('\\t')
+        feature = fields[2]
+        if feature == 'transcript':
+            if current_block:
+                transcript_blocks.append(current_block)
+            current_block = [line]
+        elif current_block:
+            current_block.append(line)
+if current_block:
+    transcript_blocks.append(current_block)
+
+per_chunk = math.ceil(len(transcript_blocks) / chunks)
+for i in range(chunks):
+    chunk_blocks = transcript_blocks[i*per_chunk:(i+1)*per_chunk]
+    if not chunk_blocks:
+        continue
+    with open(f'chunk_{i+1:02d}.gtf', 'w') as out:
+        out.writelines(header_lines)
+        for block in chunk_blocks:
+            out.writelines(block)
+"
+
+    cat <<-END_VERSIONS > versions.yml
+    "${task.process}":
+        python: \$(python3 --version 2>&1 | grep -oP '(?<=Python )\\S+')
+    END_VERSIONS
+    """
+}
+
+
+process SQANTI3_QC_CHUNK {
+    tag "${experiment} chunk${chunk_id}"
+    label 'process_medium'
+    // ponytail: downgraded from process_high — 1/8th the transcripts per chunk
+    container "${params.container_sqanti3}"
+
+    input:
+    tuple val(experiment), val(chunk_id), path(chunk_gtf)
+
+    output:
+    tuple val(experiment), val(chunk_id),
+          path("sqanti_qc/${experiment}_chunk${chunk_id}_classification.txt"),
+          path("sqanti_qc/${experiment}_chunk${chunk_id}_corrected.fasta"),
+          path("sqanti_qc/${experiment}_chunk${chunk_id}_corrected.gtf"), emit: chunk_results
+    path "versions.yml", emit: versions
+
+    script:
+    def intropolis_arg = params.intropolis ? "--coverage ${params.intropolis}" : ""
+    def polya_peak_arg = params.polya_peak ? "--polyA_peak ${params.polya_peak}" : ""
+    """
+    sqanti3_qc.py \\
+        --isoforms ${chunk_gtf} \\
+        --refGTF ${params.ref_gtf} \\
+        --refFasta ${params.ref_fasta} \\
+        --CAGE_peak ${params.cage_peaks} \\
+        --polyA_motif_list ${params.polya_list} \\
+        ${polya_peak_arg} \\
+        ${intropolis_arg} \\
+        -t ${task.cpus} \\
+        -d sqanti_qc \\
+        -o ${experiment}_chunk${chunk_id} \\
+        --report skip
+
+    cat <<-END_VERSIONS > versions.yml
+    "${task.process}":
+        sqanti3: \$(sqanti3_qc.py --version 2>&1 | grep -oP '\\d+\\.\\d+\\.\\d+' | head -1)
+    END_VERSIONS
+    """
+}
+
+
+process SQANTI3_MERGE_CHUNKS {
+    tag "${experiment}"
+    label 'process_low'
+    container "${params.container_multiqc}"
+    publishDir { "${params.outdir}/${experiment}/joint/sqanti3" }, mode: 'copy',
+               saveAs: { fn -> fn.startsWith("sqanti_qc/") ? fn.replace("sqanti_qc/", "") : fn }
+
+    input:
+    tuple val(experiment), val(chunk_ids), path(classifications), path(fastas), path(gtfs)
+
+    output:
+    tuple val(experiment), path("sqanti_qc/${experiment}_classification.txt"),
+                           path("sqanti_qc/${experiment}_corrected.fasta"),
+                           path("sqanti_qc/${experiment}_corrected.gtf"), emit: sqanti_results
+    path "versions.yml", emit: versions
+
+    script:
+    """
+    mkdir -p sqanti_qc
+
+    # Merge classification TSVs: header from first chunk, data rows from all
+    cls_arr=( ${classifications} )
+    head -1 "\${cls_arr[0]}" > sqanti_qc/${experiment}_classification.txt
+    for f in "\${cls_arr[@]}"; do
+        tail -n+2 "\$f" >> sqanti_qc/${experiment}_classification.txt
+    done
+
+    # Concatenate corrected FASTAs
+    cat ${fastas} > sqanti_qc/${experiment}_corrected.fasta
+
+    # Concatenate corrected GTFs
+    cat ${gtfs} > sqanti_qc/${experiment}_corrected.gtf
+
+    cat <<-END_VERSIONS > versions.yml
+    "${task.process}":
+        python: \$(python3 --version 2>&1 | grep -oP '(?<=Python )\\S+')
     END_VERSIONS
     """
 }

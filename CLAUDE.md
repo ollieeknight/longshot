@@ -46,8 +46,9 @@ The pipeline expects a comma-separated samplesheet (`.csv`) with the following s
 | `10x_index` | *Optional* | 10x sample index (for conditional demultiplexing) | `SI-GA-A1` |
 | `chemistry` | *Optional* | 10x chemistry kit type (`3prime` or `5prime`, auto-detected if empty) | `5prime` |
 | `shortread_barcodes` | *Optional* | Matched Illumina barcodes TSV path (for cell correction) | `libA_barcodes.tsv.gz` |
+| `adapter_kit` | *Optional* | MAS-seq adapter kit for Skera splitting: `mas8`, `mas12`, `mas16`, or a custom FASTA path. Defaults to `params.adapter_primers` (MAS16) if empty. | `mas8` |
 
-* **Fallback behavior:** If `10x_index`, `chemistry`, or `shortread_barcodes` are empty, blank, or set to `NULL`, `null`, `NA`, or `none`, the pipeline automatically bypasses demultiplexing / custom whitelisting and falls back to static global defaults (with `chemistry` defaulting to `params.chemistry` which is `3prime`).
+* **Fallback behavior:** If `10x_index`, `chemistry`, `shortread_barcodes`, or `adapter_kit` are empty, blank, or set to `NULL`, `null`, `NA`, or `none`, the pipeline automatically bypasses demultiplexing / custom whitelisting and falls back to static global defaults (with `chemistry` defaulting to `params.chemistry` which is `3prime`, and `adapter_kit` defaulting to `params.adapter_primers` which is MAS16).
 
 ---
 
@@ -69,7 +70,7 @@ longreadr/
         ├── preprocess.nf
         ├── align.nf
         ├── quantify.nf
-        ├── qc.nf             ← Flagstat, mosdepth, nanostat, and MultiQC
+        ├── qc.nf             ← Flagstat, cramino (read-loss funnel), and MultiQC
         └── exporter.nf       ← 10x QC matrix, saturation curve, and shared catalog
 ```
 

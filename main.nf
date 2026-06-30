@@ -65,7 +65,7 @@ workflow {
     if (!params.samplesheet)      error "Please provide --samplesheet <path>"
     if (!params.ref_fasta)        error "Please provide --ref_fasta <path>"
     if (!params.ref_gtf)          error "Please provide --ref_gtf <path>"
-    if (!params.mas16_primers)    error "Please provide --mas16_primers <path>"
+    if (!params.adapter_primers)   error "Please provide --adapter_primers <path>"
     if (!params.tenx_3kit_primers) error "Please provide --tenx_3kit_primers <path>"
     if (!params.tenx_whitelist)   error "Please provide --tenx_whitelist <path>"
     if (!params.cage_peaks)       error "Please provide --cage_peaks <path>"
@@ -75,11 +75,15 @@ workflow {
     check_file(params.samplesheet,       "Samplesheet")
     check_file(params.ref_fasta,         "Reference FASTA")
     check_file(params.ref_gtf,           "Reference GTF")
-    check_file(params.mas16_primers,     "MAS16 primers FASTA")
+    check_file(params.adapter_primers,    "Adapter primers FASTA")
     check_file(params.tenx_3kit_primers, "10x 3kit primers FASTA")
     check_file(params.tenx_whitelist,    "10x barcode whitelist")
     check_file(params.cage_peaks,        "CAGE peaks BED")
     check_file(params.polya_list,        "PolyA motif list")
+    // Validate per-sample adapter kit shorthands resolve to real files
+    ['mas8', 'mas12', 'mas16'].each { kit ->
+        check_file("${projectDir}/assets/adapters/${kit}_primers.fasta", "Adapter primers FASTA (${kit})")
+    }
     preflight_samplesheet(params.samplesheet)
 
     // ── 1. Parse samplesheet ─────────────────────────────────────────────────
@@ -109,6 +113,17 @@ workflow {
                 }
             }
 
+            // Adapter kit resolution (mas8 / mas12 / mas16 shorthand or custom path)
+            def kit_val = row.containsKey('adapter_kit') && row.adapter_kit ? row.adapter_kit.trim() : ""
+            def is_null_kit = kit_val == "" || kit_val.equalsIgnoreCase("null") || kit_val.equalsIgnoreCase("na") || kit_val.equalsIgnoreCase("none")
+            def adapter_file = params.adapter_primers
+            if (!is_null_kit) {
+                if      (kit_val == 'mas8')  adapter_file = "${projectDir}/assets/adapters/mas8_primers.fasta"
+                else if (kit_val == 'mas12') adapter_file = "${projectDir}/assets/adapters/mas12_primers.fasta"
+                else if (kit_val == 'mas16') adapter_file = "${projectDir}/assets/adapters/mas16_primers.fasta"
+                else                         adapter_file = kit_val
+            }
+
             def meta = [
                 id:                  "${row.experiment}_${row.library_id}_${row.run_id}",
                 sample_id:           "${row.experiment}_${row.library_id}",
@@ -117,7 +132,8 @@ workflow {
                 run_id:              row.run_id,
                 shortread_barcodes:  sr_barcodes,
                 tenx_index:          tenx_index,
-                chemistry:           chemistry
+                chemistry:           chemistry,
+                adapter_file:        adapter_file
             ]
             [ meta, bam_file, stats_dir.exists() ? stats_dir : null ]
         }
@@ -157,9 +173,11 @@ workflow {
         .mix( COLLECT_INSTRUMENT_STATS.out.stats.flatten() )
         .mix( PREPROCESS.out.lima_reports.flatten() )
         .mix( PREPROCESS.out.flagstat )
+        .mix( PREPROCESS.out.skera_logs )
+        .mix( PREPROCESS.out.refine_summaries )
         .mix( ALIGN.out.flagstat )
-        .mix( ALIGN.out.mosdepth )
-        .mix( ALIGN.out.nanostat )
+        .mix( ALIGN.out.cramino.flatten() )
+        .mix( PREPROCESS.out.cramino_reports.flatten() )
         .mix( EXPORT.out.saturation )
         .mix( PREPROCESS.out.versions.flatten() )
         .mix( ALIGN.out.versions.flatten() )

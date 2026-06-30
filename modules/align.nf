@@ -225,6 +225,41 @@ process CB_SUFFIX_INJECT {
 }
 
 
+// ── Plan 03: Per-shard BAM splitting ─────────────────────────────────────────
+
+process SPLIT_BAM_BY_SHARD {
+    tag "${meta.sample_id} shard${shard.id}"
+    label 'process_low'
+    container "${params.container_samtools}"
+
+    input:
+    tuple val(meta), path(bam), path(bai), val(shard)
+
+    output:
+    tuple val(meta), val(shard), path("${meta.sample_id}_shard${shard.id}.bam"),
+                                 path("${meta.sample_id}_shard${shard.id}.bam.bai"), emit: shard_bam
+    path "versions.yml", emit: versions
+
+    script:
+    def chr_list = shard.chrs.join(' ')
+    """
+    samtools view \\
+        -@ ${task.cpus} \\
+        -b \\
+        -o ${meta.sample_id}_shard${shard.id}.bam \\
+        ${bam} \\
+        ${chr_list}
+
+    samtools index -@ ${task.cpus} ${meta.sample_id}_shard${shard.id}.bam
+
+    cat <<-END_VERSIONS > versions.yml
+    "${task.process}":
+        samtools: \$(samtools --version | head -n1 | sed 's/samtools //')
+    END_VERSIONS
+    """
+}
+
+
 process GENERATE_CRAM {
     tag "${meta.sample_id}"
     label 'process_low'

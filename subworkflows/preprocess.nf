@@ -1,5 +1,5 @@
-include { SKERA_SPLIT; EXTRACT_BAM_HEADER_READS; DETECT_SAMPLE_INDICES; CONSTRUCT_MULTIPLEX_PRIMERS; LIMA_ISOSEQ; LIMA_MULTIPLEX; MERGE_INDEX_BAMS; ISOSEQ_TAG; ISOSEQ_REFINE } from '../modules/preprocess'
-include { SAMTOOLS_FLAGSTAT } from '../modules/qc'
+include { SKERA_SPLIT; EXTRACT_BAM_HEADER_READS; DETECT_SAMPLE_INDICES; CONSTRUCT_MULTIPLEX_PRIMERS; LIMA_ISOSEQ; LIMA_MULTIPLEX; MERGE_INDEX_BAMS; ISOSEQ_TAG; ISOSEQ_REFINE; SAMTOOLS_LENGTH_FILTER } from '../modules/preprocess'
+include { SAMTOOLS_FLAGSTAT; CRAMINO } from '../modules/qc'
 
 
 workflow PREPROCESS {
@@ -22,8 +22,31 @@ workflow PREPROCESS {
         }
         .set { ch_grouped_smrtcells }
 
+    // cramino: raw HiFi BAM (per SMRT cell, before any splitting)
+    ch_grouped_smrtcells
+        .map { smrt_meta, bam, metas -> [ smrt_meta, 'raw', '--ubam', bam ] }
+        | CRAMINO
+
     // ── Run Skera split once per raw BAM flowcell ─────────────────────────────
-    SKERA_SPLIT(ch_grouped_smrtcells.map { smrt_meta, bam, metas -> [ smrt_meta, bam ] })
+    ch_grouped_smrtcells
+        .map { smrt_meta, bam, metas ->
+            def adapter = file(metas[0].adapter_file)
+            [ smrt_meta, bam, adapter ]
+        }
+        | SKERA_SPLIT
+
+    // cramino: post-Skera segmented BAM (before length filter)
+    SKERA_SPLIT.out.segmented_bam
+        .map { meta, bam -> [ meta, 'segmented', '--ubam', bam ] }
+        | CRAMINO
+
+    // ── Length filter: remove sub-${params.min_read_length}bp Skera artefacts ─
+    SKERA_SPLIT.out.segmented_bam | SAMTOOLS_LENGTH_FILTER
+
+    // cramino: post-length-filter (shows artefact removal read loss)
+    SAMTOOLS_LENGTH_FILTER.out.filtered_bam
+        .map { meta, bam -> [ meta, 'filtered', '--ubam', bam ] }
+        | CRAMINO
 
     // ── Run pre-flight sample index detection QC ─────────────────────────────
     ch_grouped_smrtcells
@@ -39,10 +62,10 @@ workflow PREPROCESS {
         .join(ch_idx_mapping)
         | DETECT_SAMPLE_INDICES
 
-    // ── Join split BAM with grouped metadata to branch on demultiplexing ──────
-    SKERA_SPLIT.out.segmented_bam
+    // ── Join filtered BAM with grouped metadata to branch on demultiplexing ────
+    SAMTOOLS_LENGTH_FILTER.out.filtered_bam
         .join(ch_grouped_smrtcells.map { smrt_meta, bam, metas -> [ smrt_meta, metas ] })
-        .branch { smrt_meta, segmented_bam, metas ->
+        .branch { smrt_meta, filtered_bam, metas ->
             def unique_indices = metas.collect { it.tenx_index }.findAll { it != null }.unique()
             multiplexed: unique_indices.size() > 1
             standard: true
@@ -71,13 +94,13 @@ workflow PREPROCESS {
 
     // 2. Run LIMA multiplexed demultiplexing
     ch_branched_segmented.multiplexed
-        .map { smrt_meta, segmented_bam, metas -> [ smrt_meta, segmented_bam ] }
+        .map { smrt_meta, filtered_bam, metas -> [ smrt_meta, filtered_bam ] }
         .join(CONSTRUCT_MULTIPLEX_PRIMERS.out.primers)
         | LIMA_MULTIPLEX
 
     // 3. Flatten split BAM files and merge them back per individual library ID
     LIMA_MULTIPLEX.out.split_bams
-        .join(ch_branched_segmented.multiplexed.map { smrt_meta, segmented_bam, metas -> [ smrt_meta, metas ] })
+        .join(ch_branched_segmented.multiplexed.map { smrt_meta, filtered_bam, metas -> [ smrt_meta, metas ] })
         .flatMap { smrt_meta, bams, metas ->
             metas.collect { meta ->
                 def lib_bams = bams.findAll { it.name.contains(meta.library_id) }
@@ -91,28 +114,42 @@ workflow PREPROCESS {
         .mix(MERGE_INDEX_BAMS.out.fl_bam)
         .set { ch_fl_bam }
 
+    // cramino: post-Lima FL BAM
+    ch_fl_bam
+        .map { meta, bam -> [ meta, 'fl', '--ubam', bam ] }
+        | CRAMINO
+
     // ── downstream tagging & refining per library ID ─────────────────────────
     ISOSEQ_TAG(ch_fl_bam)
     ISOSEQ_REFINE(ISOSEQ_TAG.out.flt_bam)
 
-    // QC: flagstat on FLTNC (post-refine read count)
+    // QC: flagstat + cramino on FLTNC (post-refine read count)
     ISOSEQ_REFINE.out.fltnc_bam
         .map { meta, bam -> [ meta, 'fltnc', bam ] }
         | SAMTOOLS_FLAGSTAT
 
+    ISOSEQ_REFINE.out.fltnc_bam
+        .map { meta, bam -> [ meta, 'fltnc', '--ubam', bam ] }
+        | CRAMINO
+
     emit:
-    fltnc_bam    = ISOSEQ_REFINE.out.fltnc_bam
-    lima_reports = LIMA_ISOSEQ.out.lima_reports.mix(LIMA_MULTIPLEX.out.lima_reports)
-    flagstat     = SAMTOOLS_FLAGSTAT.out.flagstat
-    versions     = Channel.empty()
-                    .mix(SKERA_SPLIT.out.versions)
-                    .mix(EXTRACT_BAM_HEADER_READS.out.versions)
-                    .mix(DETECT_SAMPLE_INDICES.out.versions)
-                    .mix(CONSTRUCT_MULTIPLEX_PRIMERS.out.versions)
-                    .mix(LIMA_ISOSEQ.out.versions)
-                    .mix(LIMA_MULTIPLEX.out.versions)
-                    .mix(MERGE_INDEX_BAMS.out.versions)
-                    .mix(ISOSEQ_TAG.out.versions)
-                    .mix(ISOSEQ_REFINE.out.versions)
-                    .mix(SAMTOOLS_FLAGSTAT.out.versions)
+    fltnc_bam        = ISOSEQ_REFINE.out.fltnc_bam
+    lima_reports     = LIMA_ISOSEQ.out.lima_reports.mix(LIMA_MULTIPLEX.out.lima_reports)
+    flagstat         = SAMTOOLS_FLAGSTAT.out.flagstat
+    cramino_reports  = CRAMINO.out.stats
+    skera_logs       = SKERA_SPLIT.out.skera_log
+    refine_summaries = ISOSEQ_REFINE.out.filter_summary.mix(ISOSEQ_REFINE.out.report)
+    versions         = Channel.empty()
+                        .mix(SKERA_SPLIT.out.versions)
+                        .mix(SAMTOOLS_LENGTH_FILTER.out.versions)
+                        .mix(EXTRACT_BAM_HEADER_READS.out.versions)
+                        .mix(DETECT_SAMPLE_INDICES.out.versions)
+                        .mix(CONSTRUCT_MULTIPLEX_PRIMERS.out.versions)
+                        .mix(LIMA_ISOSEQ.out.versions)
+                        .mix(LIMA_MULTIPLEX.out.versions)
+                        .mix(MERGE_INDEX_BAMS.out.versions)
+                        .mix(ISOSEQ_TAG.out.versions)
+                        .mix(ISOSEQ_REFINE.out.versions)
+                        .mix(SAMTOOLS_FLAGSTAT.out.versions)
+                        .mix(CRAMINO.out.versions)
 }

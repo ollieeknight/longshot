@@ -5,9 +5,7 @@ include { SAMTOOLS_SORT_CB     } from '../modules/align'
 include { ISOSEQ_GROUPDEDUP    } from '../modules/align'
 include { PBMM2_ALIGN          } from '../modules/align'
 include { GENERATE_CRAM        } from '../modules/align'
-include { SAMTOOLS_FLAGSTAT    } from '../modules/qc'
-include { MOSDEPTH             } from '../modules/qc'
-include { NANOSTAT             } from '../modules/qc'
+include { SAMTOOLS_FLAGSTAT; CRAMINO } from '../modules/qc'
 
 
 workflow ALIGN {
@@ -69,9 +67,14 @@ workflow ALIGN {
         )
         | SAMTOOLS_FLAGSTAT
 
-    // QC: mosdepth, nanostat post-alignment
-    MOSDEPTH(PBMM2_ALIGN.out.aligned_bam)
-    NANOSTAT(PBMM2_ALIGN.out.aligned_bam)
+    // cramino: merged FLTNC, dedup, and aligned stages
+    SAMTOOLS_MERGE_FLTNC.out.merged_bam
+        .map { meta, bam -> [ meta, 'merged', '--ubam', bam ] }
+        .mix( ISOSEQ_GROUPDEDUP.out.dedup_bam
+                .map { meta, bam -> [ meta, 'dedup', '--ubam', bam ] } )
+        .mix( PBMM2_ALIGN.out.aligned_bam
+                .map { meta, bam, bai -> [ meta, 'aligned', '--spliced --karyotype', bam ] } )
+        | CRAMINO
 
     // Archive as CRAM
     GENERATE_CRAM(PBMM2_ALIGN.out.aligned_bam)
@@ -80,8 +83,7 @@ workflow ALIGN {
     aligned_bam  = PBMM2_ALIGN.out.aligned_bam
     cram         = GENERATE_CRAM.out.cram
     flagstat     = SAMTOOLS_FLAGSTAT.out.flagstat
-    mosdepth     = MOSDEPTH.out.summary
-    nanostat     = NANOSTAT.out.stats
+    cramino      = CRAMINO.out.stats
     versions     = Channel.empty()
                     .mix(SAMTOOLS_MERGE_FLTNC.out.versions)
                     .mix(PREPARE_WHITELIST.out.versions)
@@ -90,7 +92,6 @@ workflow ALIGN {
                     .mix(ISOSEQ_GROUPDEDUP.out.versions)
                     .mix(PBMM2_ALIGN.out.versions)
                     .mix(SAMTOOLS_FLAGSTAT.out.versions)
-                    .mix(MOSDEPTH.out.versions)
-                    .mix(NANOSTAT.out.versions)
+                    .mix(CRAMINO.out.versions)
                     .mix(GENERATE_CRAM.out.versions)
 }

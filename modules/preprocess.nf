@@ -2,12 +2,14 @@ process SKERA_SPLIT {
     tag "${meta.id}"
     label 'process_high'
     container "${params.container_skera}"
+    publishDir { "${params.outdir}/${meta.experiment}/qc/skera" }, mode: 'copy', pattern: "*.log"
 
     input:
-    tuple val(meta), path(hifi_bam)
+    tuple val(meta), path(hifi_bam), path(adapters)
 
     output:
     tuple val(meta), path("${meta.id}_segmented.bam"), emit: segmented_bam
+    path "${meta.id}_skera.log",                       optional: true, emit: skera_log
     path "versions.yml",                               emit: versions
 
     script:
@@ -15,8 +17,9 @@ process SKERA_SPLIT {
     skera split \\
         -j ${task.cpus} \\
         ${hifi_bam} \\
-        ${params.mas16_primers} \\
-        ${meta.id}_segmented.bam
+        ${adapters} \\
+        ${meta.id}_segmented.bam \\
+        2> ${meta.id}_skera.log
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":
@@ -26,22 +29,56 @@ process SKERA_SPLIT {
 }
 
 
+process SAMTOOLS_LENGTH_FILTER {
+    tag "${meta.id}"
+    label 'process_low'
+    container "${params.container_samtools}"
+
+    input:
+    tuple val(meta), path(bam)
+
+    output:
+    tuple val(meta), path("${meta.id}_filtered.bam"), emit: filtered_bam
+    path "versions.yml",                               emit: versions
+
+    script:
+    """
+    samtools view \\
+        -@ ${task.cpus} \\
+        -b \\
+        -e "length(seq) >= ${params.min_read_length}" \\
+        ${bam} \\
+        -o ${meta.id}_filtered.bam
+
+    cat <<-END_VERSIONS > versions.yml
+    "${task.process}":
+        samtools: \$(samtools --version | head -n1 | sed 's/samtools //')
+    END_VERSIONS
+    """
+}
+
+
 process LIMA_ISOSEQ {
     tag "${meta.id}"
     label 'process_high'
     container "${params.container_lima}"
+    publishDir { "${params.outdir}/${meta.experiment}/${meta.library_id}/qc/lima" }, mode: 'copy',
+               pattern: "${meta.id}_fl.lima.*"
 
     input:
     tuple val(meta), path(segmented_bam), path(primers)
 
     output:
-    tuple val(meta), path("${meta.id}_fl.bam"), emit: fl_bam
-    path "${meta.id}_fl.lima.*",                emit: lima_reports
-    path "versions.yml",                        emit: versions
+    tuple val(meta), path("${meta.id}_fl.bam"),        emit: fl_bam
+    path "${meta.id}_fl.lima.*",                       emit: lima_reports
+    path "${meta.id}_fl.removed.bam",                  optional: true, emit: lima_removed
+    path "versions.yml",                               emit: versions
 
     script:
     """
     lima --isoseq \\
+        --dump-clips \\
+        --dump-removed \\
         -j ${task.cpus} \\
         ${segmented_bam} \\
         ${primers} \\
@@ -49,19 +86,22 @@ process LIMA_ISOSEQ {
 
     # Rename oriented BAM to a predictable name regardless of primer labels in FASTA
     # Exactly one non-unassigned oriented BAM must exist for --isoseq mode
-    NBAM=\$(find . -maxdepth 1 -name "fl.*.bam" ! -name "fl.bam" ! -name "*unassigned*" | wc -l)
+    NBAM=\$(find . -maxdepth 1 -name "fl.*.bam" ! -name "fl.bam" ! -name "*unassigned*" ! -name "fl.removed.bam" | wc -l)
     if [ "\$NBAM" -ne 1 ]; then
         echo "ERROR [LIMA_ISOSEQ]: Expected exactly 1 oriented BAM output from lima, found \$NBAM" >&2
         find . -maxdepth 1 -name "fl.*.bam" >&2
         exit 1
     fi
-    find . -maxdepth 1 -name "fl.*.bam" ! -name "fl.bam" ! -name "*unassigned*" \
+    find . -maxdepth 1 -name "fl.*.bam" ! -name "fl.bam" ! -name "*unassigned*" ! -name "fl.removed.bam" \
         | xargs -I{} mv {} ${meta.id}_fl.bam
 
-    # Rename lima reports
+    # Rename lima reports and clips (fl.lima.*)
     for f in fl.lima.*; do
         mv "\$f" "${meta.id}_\$f"
     done
+
+    # Rename removed BAM if present
+    [ -f fl.removed.bam ] && mv fl.removed.bam ${meta.id}_fl.removed.bam || true
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":
@@ -75,27 +115,35 @@ process LIMA_MULTIPLEX {
     tag "${meta.id}"
     label 'process_high'
     container "${params.container_lima}"
+    publishDir { "${params.outdir}/${meta.experiment}/${meta.id}/qc/lima" }, mode: 'copy',
+               pattern: "${meta.id}_fl.lima.*"
 
     input:
     tuple val(meta), path(segmented_bam), path(primers)
 
     output:
-    tuple val(meta), path("fl.*.bam"),   emit: split_bams
-    path "${meta.id}_fl.lima.*",        emit: lima_reports
-    path "versions.yml",                emit: versions
+    tuple val(meta), path("fl.*.bam"),             emit: split_bams
+    path "${meta.id}_fl.lima.*",                   emit: lima_reports
+    path "${meta.id}_fl.removed.bam",              optional: true, emit: lima_removed
+    path "versions.yml",                           emit: versions
 
     script:
     """
     lima --isoseq \\
+        --dump-clips \\
+        --dump-removed \\
         -j ${task.cpus} \\
         ${segmented_bam} \\
         ${primers} \\
         fl.bam
 
-    # Rename lima reports
+    # Rename lima reports and clips (fl.lima.*)
     for f in fl.lima.*; do
         mv "\$f" "${meta.id}_\$f"
     done
+
+    # Rename removed BAM if present
+    [ -f fl.removed.bam ] && mv fl.removed.bam ${meta.id}_fl.removed.bam || true
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":
@@ -138,13 +186,17 @@ process ISOSEQ_REFINE {
     tag "${meta.id}"
     label 'process_high'
     container "${params.container_isoseq}"
+    publishDir { "${params.outdir}/${meta.experiment}/${meta.library_id}/qc/isoseq_refine" }, mode: 'copy',
+               pattern: "${meta.id}_fltnc.{filter_summary.json,report.csv}"
 
     input:
     tuple val(meta), path(flt_bam)
 
     output:
-    tuple val(meta), path("${meta.id}_fltnc.bam"), emit: fltnc_bam
-    path "versions.yml",                           emit: versions
+    tuple val(meta), path("${meta.id}_fltnc.bam"),               emit: fltnc_bam
+    path "${meta.id}_fltnc.filter_summary.json", optional: true, emit: filter_summary
+    path "${meta.id}_fltnc.report.csv",          optional: true, emit: report
+    path "versions.yml",                                         emit: versions
 
     script:
     def refine_primers = (meta.chemistry == "5prime") ? file(params.tenx_5kit_primers) : file(params.tenx_3kit_primers)
