@@ -93,14 +93,4 @@ workflow CLASSIFY {
     filtered_fasta  = SQANTI3_FILTER.out.filtered_fasta
     filtered_class  = SQANTI3_FILTER.out.filtered_class
     sqanti_class    = SQANTI3_MERGE_CHUNKS.out.sqanti_results.map { exp, cls, fa, gtf -> cls }
-    versions        = Channel.empty()
-                      .mix(CB_SUFFIX_INJECT.out.versions)
-                      .mix(SPLIT_BAM_BY_SHARD.out.versions)
-                      .mix(ISOQUANT_DISCOVERY_SHARD.out.versions)
-                      .mix(MERGE_SHARD_GTFS.out.versions)
-                      .mix(SQANTI3_SPLIT_GTF.out.versions)
-                      .mix(SQANTI3_QC_CHUNK.out.versions)
-                      .mix(SQANTI3_MERGE_CHUNKS.out.versions)
-                      .mix(SQANTI3_FILTER.out.versions)
-                      .mix(SQANTI3_RESCUE.out.versions)
 }

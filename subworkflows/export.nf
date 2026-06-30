@@ -27,9 +27,4 @@ workflow EXPORT {
     qc_export      = EXPORT_LIBRARY_MTX.out.mtx_export
     shared_catalog = GENERATE_SHARED_CATALOG.out.catalog
     shared_map     = GENERATE_SHARED_CATALOG.out.map
-    saturation     = CALCULATE_SATURATION.out.report
-    versions       = Channel.empty()
-                     .mix(EXPORT_LIBRARY_MTX.out.versions)
-                     .mix(GENERATE_SHARED_CATALOG.out.versions)
-                     .mix(CALCULATE_SATURATION.out.versions)
 }

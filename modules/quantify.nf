@@ -8,7 +8,6 @@ process ISOQUANT_DISCOVERY {
 
     output:
     tuple val(experiment), path("isoquant_out/${experiment}/${experiment}.transcript_models.gtf"), emit: transcript_gtf
-    path "versions.yml",                                                                           emit: versions
 
     script:
     def chrs = ((1..22).collect { "chr${it}" } + ['chrX', 'chrY', 'chrM']).join(' ')
@@ -31,11 +30,6 @@ process ISOQUANT_DISCOVERY {
         --threads ${task.cpus} \\
         --prefix ${experiment} \\
         --output isoquant_out
-
-    cat <<-END_VERSIONS > versions.yml
-    "${task.process}":
-        isoquant: \$(isoquant --version 2>&1 | grep -oP '\\d+\\.\\d+\\.\\d+' | head -1)
-    END_VERSIONS
     """
 }
 
@@ -54,7 +48,6 @@ process SQANTI3_QC {
                            path("sqanti_qc/${experiment}_corrected.fasta"),
                            path("sqanti_qc/${experiment}_corrected.gtf"),   emit: sqanti_results
     path "sqanti_qc/${experiment}_junctions.txt",                           emit: junctions
-    path "versions.yml",                                                    emit: versions
 
     script:
     def intropolis_arg = params.intropolis ? "--coverage ${params.intropolis}" : ""
@@ -72,11 +65,6 @@ process SQANTI3_QC {
         -d sqanti_qc \\
         -o ${experiment} \\
         --report pdf
-
-    cat <<-END_VERSIONS > versions.yml
-    "${task.process}":
-        sqanti3: \$(sqanti3_qc.py --version 2>&1 | grep -oP '\\d+\\.\\d+\\.\\d+' | head -1)
-    END_VERSIONS
     """
 }
 
@@ -94,7 +82,6 @@ process SQANTI3_FILTER {
     tuple val(experiment), path("sqanti_filter/${experiment}_filtered_classification.txt"), emit: filtered_class
     tuple val(experiment), path("sqanti_filter/${experiment}_filtered.gtf"),               emit: filtered_gtf
     tuple val(experiment), path("sqanti_filter/${experiment}_filtered.fasta"),             emit: filtered_fasta
-    path "versions.yml",                                                                   emit: versions
 
     script:
     """
@@ -105,11 +92,6 @@ process SQANTI3_FILTER {
         -d sqanti_filter \\
         -o ${experiment}_filtered \\
         --skip_report
-
-    cat <<-END_VERSIONS > versions.yml
-    "${task.process}":
-        sqanti3: \$(sqanti3_filter.py --version 2>&1 | grep -oP '\\d+\\.\\d+\\.\\d+' | head -1)
-    END_VERSIONS
     """
 }
 
@@ -127,7 +109,6 @@ process SQANTI3_RESCUE {
     tuple val(experiment), path("sqanti_rescue/${experiment}_rescued.gtf"),   emit: rescued_gtf
     tuple val(experiment), path("sqanti_rescue/${experiment}_rescued.fasta"), emit: rescued_fasta
     path "sqanti_rescue/${experiment}_rescue_inclusion_list.tsv",             emit: inclusion_list
-    path "versions.yml",                                                      emit: versions
 
     script:
     """
@@ -140,11 +121,6 @@ process SQANTI3_RESCUE {
         --mode automatic \\
         -d sqanti_rescue \\
         -o ${experiment}
-
-    cat <<-END_VERSIONS > versions.yml
-    "${task.process}":
-        sqanti3: \$(sqanti3_rescue.py --version 2>&1 | grep -oP '\\d+\\.\\d+\\.\\d+' | head -1)
-    END_VERSIONS
     """
 }
 
@@ -163,7 +139,6 @@ process ISOQUANT_DISCOVERY_SHARD {
     tuple val(experiment), val(shard),
           path("isoquant_out/${experiment}_shard${shard.id}/${experiment}_shard${shard.id}.transcript_models.gtf"),
           emit: shard_gtf
-    path "versions.yml", emit: versions
 
     script:
     def chr_list = shard.chrs.join(' ')
@@ -187,11 +162,6 @@ process ISOQUANT_DISCOVERY_SHARD {
         --threads ${task.cpus} \\
         --prefix ${prefix} \\
         --output isoquant_out
-
-    cat <<-END_VERSIONS > versions.yml
-    "${task.process}":
-        isoquant: \$(isoquant --version 2>&1 | grep -oP '\\d+\\.\\d+\\.\\d+' | head -1)
-    END_VERSIONS
     """
 }
 
@@ -206,7 +176,6 @@ process MERGE_SHARD_GTFS {
 
     output:
     tuple val(experiment), path("${experiment}.transcript_models.gtf"), emit: transcript_gtf
-    path "versions.yml", emit: versions
 
     script:
     """
@@ -240,11 +209,6 @@ with open(out_file, 'w') as out:
                     entry_seen.add(key)
                     out.write(line)
 "
-
-    cat <<-END_VERSIONS > versions.yml
-    "${task.process}":
-        python: \$(python3 --version 2>&1 | grep -oP '(?<=Python )\\S+')
-    END_VERSIONS
     """
 }
 
@@ -260,7 +224,6 @@ process SQANTI3_SPLIT_GTF {
 
     output:
     tuple val(experiment), path("chunk_*.gtf"), emit: chunks
-    path "versions.yml",                        emit: versions
 
     script:
     """
@@ -300,11 +263,6 @@ for i in range(chunks):
         for block in chunk_blocks:
             out.writelines(block)
 "
-
-    cat <<-END_VERSIONS > versions.yml
-    "${task.process}":
-        python: \$(python3 --version 2>&1 | grep -oP '(?<=Python )\\S+')
-    END_VERSIONS
     """
 }
 
@@ -322,7 +280,6 @@ process SQANTI3_QC_CHUNK {
           path("sqanti_qc/${experiment}_chunk${chunk_id}_classification.txt"),
           path("sqanti_qc/${experiment}_chunk${chunk_id}_corrected.fasta"),
           path("sqanti_qc/${experiment}_chunk${chunk_id}_corrected.gtf"), emit: chunk_results
-    path "versions.yml", emit: versions
 
     script:
     def intropolis_arg = params.intropolis ? "--coverage ${params.intropolis}" : ""
@@ -340,11 +297,6 @@ process SQANTI3_QC_CHUNK {
         -d sqanti_qc \\
         -o ${experiment}_chunk${chunk_id} \\
         --report skip
-
-    cat <<-END_VERSIONS > versions.yml
-    "${task.process}":
-        sqanti3: \$(sqanti3_qc.py --version 2>&1 | grep -oP '\\d+\\.\\d+\\.\\d+' | head -1)
-    END_VERSIONS
     """
 }
 
@@ -362,7 +314,6 @@ process SQANTI3_MERGE_CHUNKS {
     tuple val(experiment), path("sqanti_qc/${experiment}_classification.txt"),
                            path("sqanti_qc/${experiment}_corrected.fasta"),
                            path("sqanti_qc/${experiment}_corrected.gtf"), emit: sqanti_results
-    path "versions.yml", emit: versions
 
     script:
     """
@@ -380,11 +331,6 @@ process SQANTI3_MERGE_CHUNKS {
 
     # Concatenate corrected GTFs
     cat ${gtfs} > sqanti_qc/${experiment}_corrected.gtf
-
-    cat <<-END_VERSIONS > versions.yml
-    "${task.process}":
-        python: \$(python3 --version 2>&1 | grep -oP '(?<=Python )\\S+')
-    END_VERSIONS
     """
 }
 
@@ -400,7 +346,6 @@ process ISOQUANT_QUANTIFY {
 
     output:
     tuple val(meta), path("isoquant_out/${meta.library_id}/"), emit: counts_dir
-    path "versions.yml",                                       emit: versions
 
     script:
     def chrs = ((1..22).collect { "chr${it}" } + ['chrX', 'chrY', 'chrM']).join(' ')
@@ -419,10 +364,5 @@ process ISOQUANT_QUANTIFY {
         --threads ${task.cpus} \\
         --prefix ${meta.library_id} \\
         --output isoquant_out
-
-    cat <<-END_VERSIONS > versions.yml
-    "${task.process}":
-        isoquant: \$(isoquant --version 2>&1 | grep -oP '\\d+\\.\\d+\\.\\d+' | head -1)
-    END_VERSIONS
     """
 }

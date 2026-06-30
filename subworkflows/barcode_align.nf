@@ -84,14 +84,4 @@ workflow BARCODE_ALIGN {
     cram         = GENERATE_CRAM.out.cram
     flagstat     = SAMTOOLS_FLAGSTAT.out.flagstat
     cramino      = CRAMINO_ALIGNED.out.stats
-    versions     = Channel.empty()
-                    .mix(SAMTOOLS_MERGE_FLTNC.out.versions)
-                    .mix(PREPARE_WHITELIST.out.versions)
-                    .mix(ISOSEQ_CORRECT.out.versions)
-                    .mix(SAMTOOLS_SORT_CB.out.versions)
-                    .mix(ISOSEQ_GROUPDEDUP.out.versions)
-                    .mix(PBMM2_ALIGN.out.versions)
-                    .mix(SAMTOOLS_FLAGSTAT.out.versions)
-                    .mix(CRAMINO_ALIGNED.out.versions)
-                    .mix(GENERATE_CRAM.out.versions)
 }

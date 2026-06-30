@@ -86,6 +86,21 @@ workflow {
     }
     preflight_samplesheet(params.samplesheet)
 
+    // ── Publish samplesheet + run params for provenance ───────────────────────
+    def pipeline_info_dir = file("${params.outdir}/pipeline_info")
+    pipeline_info_dir.mkdirs()
+    file(params.samplesheet).copyTo(pipeline_info_dir.resolve("samplesheet.csv"))
+
+    def run_info = [
+        command         : workflow.commandLine,
+        run_name        : workflow.runName,
+        start           : workflow.start.toString(),
+        nextflow_version: workflow.nextflow.version.toString(),
+        params          : params.findAll { true },
+    ]
+    Channel.of(groovy.json.JsonOutput.prettyPrint(groovy.json.JsonOutput.toJson(run_info)))
+        .collectFile(name: 'run_params.json', storeDir: "${params.outdir}/pipeline_info")
+
     // ── 1. Parse samplesheet ─────────────────────────────────────────────────
     Channel
         .fromPath(params.samplesheet)
@@ -168,22 +183,14 @@ workflow {
     // ── 7. Matrix Export & Saturation Curves ─────────────────────────────────
     EXPORT(QUANTIFY.out.counts_dir, CLASSIFY.out.filtered_class, CLASSIFY.out.rescued_gtf)
 
-    // ── 8. Aggregate MultiQC ──────────────────────────────────────────────────
+    // ── 8. Aggregate MultiQC — QC reports only, in pipeline stage order ──────
     Channel.empty()
-        .mix( COLLECT_INSTRUMENT_STATS.out.stats.flatten() )
-        .mix( PREPROCESS.out.lima_reports.flatten() )
-        .mix( PREPROCESS.out.flagstat )
-        .mix( PREPROCESS.out.skera_logs )
-        .mix( PREPROCESS.out.refine_summaries )
-        .mix( BARCODE_ALIGN.out.flagstat )
-        .mix( BARCODE_ALIGN.out.cramino.flatten() )
-        .mix( PREPROCESS.out.cramino_reports.flatten() )
-        .mix( EXPORT.out.saturation )
-        .mix( PREPROCESS.out.versions.flatten() )
-        .mix( BARCODE_ALIGN.out.versions.flatten() )
-        .mix( CLASSIFY.out.versions.flatten() )
-        .mix( QUANTIFY.out.versions.flatten() )
-        .mix( EXPORT.out.versions.flatten() )
+        .mix( COLLECT_INSTRUMENT_STATS.out.stats.flatten() )  // raw run-level: lima_summary/lima_counts/ccs_report
+        .mix( PREPROCESS.out.lima_reports.flatten() )         // demux: Lima module
+        .mix( PREPROCESS.out.flagstat )                       // post-refine: samtools flagstat module
+        .mix( PREPROCESS.out.cramino_reports.flatten() )      // preprocess read-loss funnel: cramino module
+        .mix( BARCODE_ALIGN.out.flagstat )                    // post-dedup/post-align: samtools flagstat module
+        .mix( BARCODE_ALIGN.out.cramino.flatten() )           // merged/dedup/aligned: cramino module
         .collect()
         .set { ch_multiqc_reports }
 

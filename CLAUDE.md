@@ -84,9 +84,11 @@ longreadr/
 
 ### 1. Nextflow DSL2 Best Practices
 * Keep all processes **isolated** in `modules/` and group multi-step logic in `subworkflows/`.
-* Every process **must emit a `versions.yml`** file in standard nf-core format.
+* No `versions.yml` tracking (matches `imprint`) — tool versions are pinned by container tag, not emitted per-process.
 * Avoid absolute paths at the top level of `nextflow.config`; always scope cluster-specific paths inside the `slurm` profile.
 * Use `mode: 'copy'` for light-weight publishing, and consider `mode: 'link'` or `mode: 'symlink'` when publishing massive CRAMs on the same filesystem.
+* Every run publishes `samplesheet.csv` and `run_params.json` (full command, params, Nextflow version) to `${params.outdir}/pipeline_info/` at startup (matches `imprint`).
+* `MULTIQC` only ingests reports the tool can actually parse — `lima_summary`/`lima_counts`/`ccs_report` (Lima/CCS modules), `flagstat` (samtools module), `cramino` stats (cramino module) — mixed in pipeline-stage order in `main.nf`. Files with no MultiQC module (skera logs, isoseq refine JSON, saturation curves) are published directly by their own process and deliberately excluded from the MultiQC channel.
 
 ---
 

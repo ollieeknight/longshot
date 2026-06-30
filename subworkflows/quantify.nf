@@ -16,5 +16,4 @@ workflow QUANTIFY {
 
     emit:
     counts_dir = ISOQUANT_QUANTIFY.out.counts_dir
-    versions   = ISOQUANT_QUANTIFY.out.versions
 }

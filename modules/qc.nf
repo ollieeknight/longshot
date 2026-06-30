@@ -8,7 +8,6 @@ process COLLECT_INSTRUMENT_STATS {
 
     output:
     path "instrument_stats/*", optional: true, emit: stats
-    path "versions.yml",                        emit: versions
 
     script:
     """
@@ -20,11 +19,6 @@ process COLLECT_INSTRUMENT_STATS {
             [ -f "\$f" ] && cp "\$f" instrument_stats/ || true
         done
     fi
-
-    cat <<-END_VERSIONS > versions.yml
-    "${task.process}":
-        samtools: \$(samtools --version | head -n1 | sed 's/samtools //')
-    END_VERSIONS
     """
 }
 
@@ -39,16 +33,10 @@ process SAMTOOLS_FLAGSTAT {
 
     output:
     path "${meta.sample_id}_${stage}.flagstat", emit: flagstat
-    path "versions.yml",                         emit: versions
 
     script:
     """
     samtools flagstat -@ ${task.cpus} ${bam} > ${meta.sample_id}_${stage}.flagstat
-
-    cat <<-END_VERSIONS > versions.yml
-    "${task.process}":
-        samtools: \$(samtools --version | head -n1 | sed 's/samtools //')
-    END_VERSIONS
     """
 }
 
@@ -63,7 +51,6 @@ process CRAMINO {
 
     output:
     path "${meta.sample_id ?: meta.id}_${stage}.cramino.txt", emit: stats
-    path "versions.yml",                            emit: versions
 
     script:
     """
@@ -72,11 +59,6 @@ process CRAMINO {
         ${extra_flags} \\
         ${bam} \\
         > ${meta.sample_id}_${stage}.cramino.txt
-
-    cat <<-END_VERSIONS > versions.yml
-    "${task.process}":
-        cramino: \$(cramino --version 2>&1 | sed 's/cramino //')
-    END_VERSIONS
     """
 }
 
@@ -99,10 +81,5 @@ process MULTIQC {
         ${config_arg} \\
         --force \\
         reports/
-
-    cat <<-END_VERSIONS > versions.yml
-    "${task.process}":
-        multiqc: \$(multiqc --version 2>&1 | grep -oP '(?<=version )\\S+')
-    END_VERSIONS
     """
 }

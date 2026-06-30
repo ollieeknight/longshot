@@ -9,7 +9,6 @@ process SKERA_SPLIT {
     output:
     tuple val(meta), path("${meta.id}_segmented.bam"), emit: segmented_bam
     path "${meta.id}_skera.log",                       optional: true, emit: skera_log
-    path "versions.yml",                               emit: versions
 
     script:
     """
@@ -19,11 +18,6 @@ process SKERA_SPLIT {
         ${adapters} \\
         ${meta.id}_segmented.bam \\
         2> ${meta.id}_skera.log
-
-    cat <<-END_VERSIONS > versions.yml
-    "${task.process}":
-        skera: \$(skera --version 2>&1 | grep -oP '(?<=skera )\\S+')
-    END_VERSIONS
     """
 }
 
@@ -37,7 +31,6 @@ process SAMTOOLS_LENGTH_FILTER {
 
     output:
     tuple val(meta), path("${meta.id}_filtered.bam"), emit: filtered_bam
-    path "versions.yml",                               emit: versions
 
     script:
     """
@@ -47,11 +40,6 @@ process SAMTOOLS_LENGTH_FILTER {
         -e "length(seq) >= ${params.min_read_length}" \\
         ${bam} \\
         -o ${meta.id}_filtered.bam
-
-    cat <<-END_VERSIONS > versions.yml
-    "${task.process}":
-        samtools: \$(samtools --version | head -n1 | sed 's/samtools //')
-    END_VERSIONS
     """
 }
 
@@ -69,7 +57,6 @@ process LIMA_ISOSEQ {
     tuple val(meta), path("${meta.id}_fl.bam"),        emit: fl_bam
     path "${meta.id}_fl.lima.*",                       emit: lima_reports
     path "${meta.id}_fl.removed.bam",                  optional: true, emit: lima_removed
-    path "versions.yml",                               emit: versions
 
     script:
     """
@@ -99,11 +86,6 @@ process LIMA_ISOSEQ {
 
     # Rename removed BAM if present
     [ -f fl.removed.bam ] && mv fl.removed.bam ${meta.id}_fl.removed.bam || true
-
-    cat <<-END_VERSIONS > versions.yml
-    "${task.process}":
-        lima: \$(lima --version 2>&1 | grep -oP '(?<=lima )\\S+')
-    END_VERSIONS
     """
 }
 
@@ -121,7 +103,6 @@ process LIMA_MULTIPLEX {
     tuple val(meta), path("fl.*.bam"),             emit: split_bams
     path "${meta.id}_fl.lima.*",                   emit: lima_reports
     path "${meta.id}_fl.removed.bam",              optional: true, emit: lima_removed
-    path "versions.yml",                           emit: versions
 
     script:
     """
@@ -140,11 +121,6 @@ process LIMA_MULTIPLEX {
 
     # Rename removed BAM if present
     [ -f fl.removed.bam ] && mv fl.removed.bam ${meta.id}_fl.removed.bam || true
-
-    cat <<-END_VERSIONS > versions.yml
-    "${task.process}":
-        lima: \$(lima --version 2>&1 | grep -oP '(?<=lima )\\S+')
-    END_VERSIONS
     """
 }
 
@@ -158,7 +134,6 @@ process ISOSEQ_TAG {
 
     output:
     tuple val(meta), path("${meta.id}_flt.bam"), emit: flt_bam
-    path "versions.yml",                         emit: versions
 
     script:
     def design_str = (meta.chemistry == "5prime") ? "16B-10U-13X-T" : "T-12U-16B"
@@ -168,11 +143,6 @@ process ISOSEQ_TAG {
         -j ${task.cpus} \\
         ${fl_bam} \\
         ${meta.id}_flt.bam
-
-    cat <<-END_VERSIONS > versions.yml
-    "${task.process}":
-        isoseq: \$(isoseq --version 2>&1 | grep -oP '(?<=isoseq )\\S+')
-    END_VERSIONS
     """
 }
 
@@ -190,7 +160,6 @@ process ISOSEQ_REFINE {
     tuple val(meta), path("${meta.id}_fltnc.bam"),               emit: fltnc_bam
     path "${meta.id}_fltnc.filter_summary.json", optional: true, emit: filter_summary
     path "${meta.id}_fltnc.report.csv",          optional: true, emit: report
-    path "versions.yml",                                         emit: versions
 
     script:
     def refine_primers = (meta.chemistry == "5prime") ? file(params.tenx_5kit_primers) : file(params.tenx_3kit_primers)
@@ -201,11 +170,6 @@ process ISOSEQ_REFINE {
         ${flt_bam} \\
         ${refine_primers} \\
         ${meta.id}_fltnc.bam
-
-    cat <<-END_VERSIONS > versions.yml
-    "${task.process}":
-        isoseq: \$(isoseq --version 2>&1 | grep -oP '(?<=isoseq )\\S+')
-    END_VERSIONS
     """
 }
 
@@ -219,16 +183,10 @@ process EXTRACT_BAM_HEADER_READS {
 
     output:
     tuple val(meta), path("${meta.id}_temp.fasta"), emit: fasta
-    path "versions.yml",                            emit: versions
 
     script:
     """
     samtools view ${bam} | head -n 20000 | awk '{print ">read_"NR"\\n"\$10}' > ${meta.id}_temp.fasta
-
-    cat <<-END_VERSIONS > versions.yml
-    "${task.process}":
-        samtools: \$(samtools --version | head -n1 | sed 's/samtools //')
-    END_VERSIONS
     """
 }
 
@@ -242,7 +200,6 @@ process DETECT_SAMPLE_INDICES {
 
     output:
     tuple val(meta), path("${meta.id}_index_report.tsv"), emit: index_report
-    path "versions.yml",                                   emit: versions
 
     script:
     """
@@ -317,11 +274,6 @@ if requested:
             sys.stderr.write(f'ERROR: Specified 10x index \"{req}\" was not detected in the raw reads. Please check your samplesheet index settings!\\n')
             sys.exit(1)
 "
-
-    cat <<-END_VERSIONS > versions.yml
-    "${task.process}":
-        python: \$(python3 --version 2>&1 | grep -oP '(?<=Python )\\S+')
-    END_VERSIONS
     """
 }
 
@@ -335,7 +287,6 @@ process CONSTRUCT_MULTIPLEX_PRIMERS {
 
     output:
     tuple val(meta), path("${meta.id}_multiplex_primers.fasta"), emit: primers
-    path "versions.yml",                                          emit: versions
 
     script:
     """
@@ -400,11 +351,6 @@ with open(output_file, 'w') as fh:
             for idx, seq in enumerate(seqs):
                 fh.write(f'>{lib_id}_{idx+1}_3p\\n{p_3p}{seq}\\n')
 "
-
-    cat <<-END_VERSIONS > versions.yml
-    "${task.process}":
-        python: \$(python3 --version 2>&1 | grep -oP '(?<=Python )\\S+')
-    END_VERSIONS
     """
 }
 
@@ -418,16 +364,10 @@ process MERGE_INDEX_BAMS {
 
     output:
     tuple val(meta), path("${meta.library_id}_fl.bam"), emit: fl_bam
-    path "versions.yml",                                 emit: versions
 
     script:
     """
     samtools merge -f -@ ${task.cpus} ${meta.library_id}_fl.bam ${bams}
     samtools index -@ ${task.cpus} ${meta.library_id}_fl.bam
-
-    cat <<-END_VERSIONS > versions.yml
-    "${task.process}":
-        samtools: \$(samtools --version | head -n1 | sed 's/samtools //')
-    END_VERSIONS
     """
 }

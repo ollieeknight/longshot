@@ -7,7 +7,6 @@ process SAMTOOLS_MERGE_FLTNC {
 
     output:
     tuple val(meta), path("${meta.sample_id}_fltnc_merged.bam"), emit: merged_bam
-    path "versions.yml",                                         emit: versions
 
     script:
     def bam_list = bams instanceof List ? bams : [bams]
@@ -17,11 +16,6 @@ process SAMTOOLS_MERGE_FLTNC {
     """
     ${merge_cmd}
     samtools index -@ ${task.cpus} ${meta.sample_id}_fltnc_merged.bam
-
-    cat <<-END_VERSIONS > versions.yml
-    "${task.process}":
-        samtools: \$(samtools --version | head -n1 | sed 's/samtools //')
-    END_VERSIONS
     """
 }
 
@@ -35,7 +29,6 @@ process PREPARE_WHITELIST {
 
     output:
     tuple val(meta), path("${meta.sample_id}_whitelist.txt"), emit: whitelist
-    path "versions.yml",                                       emit: versions
 
     script:
     """
@@ -59,11 +52,6 @@ with open(output_file, 'w') as f_out:
     for bc in barcodes:
         f_out.write(rev_comp(bc) + '\\n')
 "
-
-    cat <<-END_VERSIONS > versions.yml
-    "${task.process}":
-        python: \$(python3 --version 2>&1 | grep -oP '(?<=Python )\\S+')
-    END_VERSIONS
     """
 }
 
@@ -77,7 +65,6 @@ process ISOSEQ_CORRECT {
 
     output:
     tuple val(meta), path("${meta.sample_id}_corrected.bam"), emit: corrected_bam
-    path "versions.yml",                                      emit: versions
 
     script:
     def wl = whitelist.name.endsWith('.xz') ? 'whitelist_isoseq.txt.gz' : whitelist
@@ -89,11 +76,6 @@ process ISOSEQ_CORRECT {
         --barcodes ${wl} \\
         ${fltnc_bam} \\
         ${meta.sample_id}_corrected.bam
-
-    cat <<-END_VERSIONS > versions.yml
-    "${task.process}":
-        isoseq: \$(isoseq --version 2>&1 | grep -oP '(?<=isoseq )\\S+')
-    END_VERSIONS
     """
 }
 
@@ -107,7 +89,6 @@ process SAMTOOLS_SORT_CB {
 
     output:
     tuple val(meta), path("${meta.sample_id}_sorted_cb.bam"), emit: sorted_bam
-    path "versions.yml",                                      emit: versions
 
     script:
     """
@@ -118,11 +99,6 @@ process SAMTOOLS_SORT_CB {
         -o ${meta.sample_id}_sorted_cb.bam
 
     samtools index -@ ${task.cpus} ${meta.sample_id}_sorted_cb.bam
-
-    cat <<-END_VERSIONS > versions.yml
-    "${task.process}":
-        samtools: \$(samtools --version | head -n1 | sed 's/samtools //')
-    END_VERSIONS
     """
 }
 
@@ -136,7 +112,6 @@ process ISOSEQ_GROUPDEDUP {
 
     output:
     tuple val(meta), path("${meta.sample_id}_dedup.bam"), emit: dedup_bam
-    path "versions.yml",                                  emit: versions
 
     script:
     """
@@ -145,11 +120,6 @@ process ISOSEQ_GROUPDEDUP {
         --keep-non-real-cells \\
         ${sorted_bam} \\
         ${meta.sample_id}_dedup.bam
-
-    cat <<-END_VERSIONS > versions.yml
-    "${task.process}":
-        isoseq: \$(isoseq --version 2>&1 | grep -oP '(?<=isoseq )\\S+')
-    END_VERSIONS
     """
 }
 
@@ -163,7 +133,6 @@ process PBMM2_ALIGN {
 
     output:
     tuple val(meta), path("${meta.sample_id}_aligned.bam"), path("${meta.sample_id}_aligned.bam.bai"), emit: aligned_bam
-    path "versions.yml",                                                                                emit: versions
 
     script:
     """
@@ -174,11 +143,6 @@ process PBMM2_ALIGN {
         ${dedup_bam} \\
         ${params.ref_fasta} \\
         ${meta.sample_id}_aligned.bam
-
-    cat <<-END_VERSIONS > versions.yml
-    "${task.process}":
-        pbmm2: \$(pbmm2 --version 2>&1 | grep -oP '(?<=pbmm2 )\\S+')
-    END_VERSIONS
     """
 }
 
@@ -192,7 +156,6 @@ process CB_SUFFIX_INJECT {
 
     output:
     tuple val(meta), path("${meta.sample_id}_suffixed.bam"), path("${meta.sample_id}_suffixed.bam.bai"), emit: bam
-    path "versions.yml",                                                                                  emit: versions
 
     script:
     """
@@ -201,11 +164,6 @@ process CB_SUFFIX_INJECT {
     | samtools view -@ ${task.cpus} -b -o ${meta.sample_id}_suffixed.bam
 
     samtools index -@ ${task.cpus} ${meta.sample_id}_suffixed.bam
-
-    cat <<-END_VERSIONS > versions.yml
-    "${task.process}":
-        samtools: \$(samtools --version | head -n1 | sed 's/samtools //')
-    END_VERSIONS
     """
 }
 
@@ -222,7 +180,6 @@ process SPLIT_BAM_BY_SHARD {
     output:
     tuple val(meta), val(shard), path("${meta.sample_id}_shard${shard.id}.bam"),
                                  path("${meta.sample_id}_shard${shard.id}.bam.bai"), emit: shard_bam
-    path "versions.yml", emit: versions
 
     script:
     def chr_list = shard.chrs.join(' ')
@@ -235,11 +192,6 @@ process SPLIT_BAM_BY_SHARD {
         ${chr_list}
 
     samtools index -@ ${task.cpus} ${meta.sample_id}_shard${shard.id}.bam
-
-    cat <<-END_VERSIONS > versions.yml
-    "${task.process}":
-        samtools: \$(samtools --version | head -n1 | sed 's/samtools //')
-    END_VERSIONS
     """
 }
 
@@ -254,7 +206,6 @@ process GENERATE_CRAM {
 
     output:
     tuple val(meta), path("${meta.sample_id}.cram"), path("${meta.sample_id}.cram.crai"), emit: cram
-    path "versions.yml",                                                                    emit: versions
 
     script:
     """
@@ -265,10 +216,5 @@ process GENERATE_CRAM {
         -o ${meta.sample_id}.cram \\
         ${bam}
     samtools index ${meta.sample_id}.cram
-
-    cat <<-END_VERSIONS > versions.yml
-    "${task.process}":
-        samtools: \$(samtools --version | head -n1 | sed 's/samtools //')
-    END_VERSIONS
     """
 }

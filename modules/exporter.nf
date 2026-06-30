@@ -8,7 +8,6 @@ process EXPORT_LIBRARY_MTX {
 
     output:
     tuple val(meta), path("gene/"), path("transcript/"), emit: mtx_export
-    path "versions.yml",                                  emit: versions
 
     script:
     """
@@ -107,11 +106,6 @@ if os.path.exists(raw_iso_mtx):
                 gene_symbol = assoc_gene
             f_out.write(f'{tx_seurat}\\t{gene_symbol}\\tGene Expression\\t{assoc_gene}\\t{assoc_tx}\\t{struct_cat}\\n')
 "
-
-    cat <<-END_VERSIONS > versions.yml
-    "${task.process}":
-        python: \$(python3 --version 2>&1 | grep -oP '(?<=Python )\\S+')
-    END_VERSIONS
     """
 }
 
@@ -127,7 +121,6 @@ process GENERATE_SHARED_CATALOG {
     output:
     path "shared_isoform_catalog.tsv.gz", emit: catalog
     path "shared_isoform_map.tsv.gz",     emit: map
-    path "versions.yml",                  emit: versions
 
     script:
     """
@@ -174,11 +167,6 @@ df_map = df[['isoform', 'associated_gene', 'associated_transcript', 'structural_
 df_map['associated_gene_symbol'] = df_map['associated_gene'].apply(lambda x: gene_map.get(x, gene_map.get(x.split('.')[0], x)))
 df_map.to_csv('shared_isoform_map.tsv.gz', sep='\\t', index=False, compression='gzip')
 "
-
-    cat <<-END_VERSIONS > versions.yml
-    "${task.process}":
-        python: \$(python3 --version 2>&1 | grep -oP '(?<=Python )\\S+')
-    END_VERSIONS
     """
 }
 
@@ -193,7 +181,6 @@ process CALCULATE_SATURATION {
 
     output:
     path "${meta.sample_id}_saturation.tsv", emit: report
-    path "versions.yml",                     emit: versions
 
     script:
     """
@@ -258,10 +245,5 @@ else:
         df_res = pd.DataFrame(results)
         df_res.to_csv('${meta.sample_id}_saturation.tsv', sep='\\t', index=False)
 "
-
-    cat <<-END_VERSIONS > versions.yml
-    "${task.process}":
-        python: \$(python3 --version 2>&1 | grep -oP '(?<=Python )\\S+')
-    END_VERSIONS
     """
 }
