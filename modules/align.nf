@@ -1,6 +1,5 @@
 process SAMTOOLS_MERGE_FLTNC {
     tag "${meta.sample_id}"
-    label 'process_medium'
     container "${params.container_samtools}"
 
     input:
@@ -29,7 +28,6 @@ process SAMTOOLS_MERGE_FLTNC {
 
 process PREPARE_WHITELIST {
     tag "${meta.sample_id}"
-    label 'process_low'
     container "${params.container_multiqc}"
 
     input:
@@ -72,7 +70,6 @@ with open(output_file, 'w') as f_out:
 
 process ISOSEQ_CORRECT {
     tag "${meta.sample_id}"
-    label 'process_high'
     container "${params.container_isoseq}"
 
     input:
@@ -103,7 +100,6 @@ process ISOSEQ_CORRECT {
 
 process SAMTOOLS_SORT_CB {
     tag "${meta.sample_id}"
-    label 'process_medium'
     container "${params.container_samtools}"
 
     input:
@@ -133,7 +129,6 @@ process SAMTOOLS_SORT_CB {
 
 process ISOSEQ_GROUPDEDUP {
     tag "${meta.sample_id}"
-    label 'process_high'
     container "${params.container_isoseq}"
 
     input:
@@ -161,7 +156,6 @@ process ISOSEQ_GROUPDEDUP {
 
 process PBMM2_ALIGN {
     tag "${meta.sample_id}"
-    label 'process_high'
     container "${params.container_pbmm2}"
 
     input:
@@ -191,7 +185,6 @@ process PBMM2_ALIGN {
 
 process CB_SUFFIX_INJECT {
     tag "${meta.sample_id}"
-    label 'process_medium'
     container "${params.container_samtools}"
 
     input:
@@ -229,7 +222,6 @@ process CB_SUFFIX_INJECT {
 
 process SPLIT_BAM_BY_SHARD {
     tag "${meta.sample_id} shard${shard.id}"
-    label 'process_low'
     container "${params.container_samtools}"
 
     input:
@@ -262,7 +254,6 @@ process SPLIT_BAM_BY_SHARD {
 
 process GENERATE_CRAM {
     tag "${meta.sample_id}"
-    label 'process_low'
     container "${params.container_samtools}"
     publishDir { "${params.outdir}/${meta.experiment}/${meta.library_id}/alignment" }, mode: 'copy'
 

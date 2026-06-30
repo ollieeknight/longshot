@@ -1,6 +1,5 @@
 process SKERA_SPLIT {
     tag "${meta.id}"
-    label 'process_high'
     container "${params.container_skera}"
     publishDir { "${params.outdir}/${meta.experiment}/qc/skera" }, mode: 'copy', pattern: "*.log"
 
@@ -31,7 +30,6 @@ process SKERA_SPLIT {
 
 process SAMTOOLS_LENGTH_FILTER {
     tag "${meta.id}"
-    label 'process_low'
     container "${params.container_samtools}"
 
     input:
@@ -60,7 +58,6 @@ process SAMTOOLS_LENGTH_FILTER {
 
 process LIMA_ISOSEQ {
     tag "${meta.id}"
-    label 'process_high'
     container "${params.container_lima}"
     publishDir { "${params.outdir}/${meta.experiment}/${meta.library_id}/qc/lima" }, mode: 'copy',
                pattern: '${meta.id}_fl.lima.*'
@@ -113,7 +110,6 @@ process LIMA_ISOSEQ {
 
 process LIMA_MULTIPLEX {
     tag "${meta.id}"
-    label 'process_high'
     container "${params.container_lima}"
     publishDir { "${params.outdir}/${meta.experiment}/${meta.id}/qc/lima" }, mode: 'copy',
                pattern: '${meta.id}_fl.lima.*'
@@ -155,7 +151,6 @@ process LIMA_MULTIPLEX {
 
 process ISOSEQ_TAG {
     tag "${meta.id}"
-    label 'process_high'
     container "${params.container_isoseq}"
 
     input:
@@ -184,7 +179,6 @@ process ISOSEQ_TAG {
 
 process ISOSEQ_REFINE {
     tag "${meta.id}"
-    label 'process_high'
     container "${params.container_isoseq}"
     publishDir { "${params.outdir}/${meta.experiment}/${meta.library_id}/qc/isoseq_refine" }, mode: 'copy',
                pattern: '${meta.id}_fltnc.{filter_summary.json,report.csv}'
@@ -218,7 +212,6 @@ process ISOSEQ_REFINE {
 
 process EXTRACT_BAM_HEADER_READS {
     tag "${meta.id}"
-    label 'process_low'
     container "${params.container_samtools}"
 
     input:
@@ -242,7 +235,6 @@ process EXTRACT_BAM_HEADER_READS {
 
 process DETECT_SAMPLE_INDICES {
     tag "${meta.id}"
-    label 'process_low'
     container "${params.container_multiqc}"
 
     input:
@@ -336,7 +328,6 @@ if requested:
 
 process CONSTRUCT_MULTIPLEX_PRIMERS {
     tag "${meta.id}"
-    label 'process_low'
     container "${params.container_multiqc}"
 
     input:
@@ -420,7 +411,6 @@ with open(output_file, 'w') as fh:
 
 process MERGE_INDEX_BAMS {
     tag "${meta.library_id}"
-    label 'process_medium'
     container "${params.container_samtools}"
 
     input:

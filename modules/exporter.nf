@@ -1,6 +1,5 @@
 process EXPORT_LIBRARY_MTX {
     tag "${meta.sample_id}"
-    label 'process_medium'
     container "${params.container_multiqc}" // Python 3 and pandas are installed in multiqc container
     publishDir { "${params.outdir}/${meta.experiment}/${meta.library_id}/qc_export" }, mode: 'copy'
 
@@ -119,7 +118,6 @@ if os.path.exists(raw_iso_mtx):
 
 process GENERATE_SHARED_CATALOG {
     tag "${experiment}"
-    label 'process_medium'
     container "${params.container_multiqc}"
     publishDir { "${params.outdir}/${experiment}/joint" }, mode: 'copy'
 
@@ -187,7 +185,6 @@ df_map.to_csv('shared_isoform_map.tsv.gz', sep='\\t', index=False, compression='
 
 process CALCULATE_SATURATION {
     tag "${meta.sample_id}"
-    label 'process_medium'
     container "${params.container_multiqc}"
     publishDir { "${params.outdir}/${meta.experiment}/${meta.library_id}/qc" }, mode: 'copy'
 

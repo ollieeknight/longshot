@@ -1,6 +1,5 @@
 process COLLECT_INSTRUMENT_STATS {
     tag "${meta.id}"
-    label 'process_low'
     container "${params.container_samtools}"
     publishDir { "${params.outdir}/${meta.id}/qc/instrument" }, mode: 'copy'
 
@@ -32,7 +31,6 @@ process COLLECT_INSTRUMENT_STATS {
 
 process SAMTOOLS_FLAGSTAT {
     tag "${meta.sample_id} (${stage})"
-    label 'process_low'
     container "${params.container_samtools}"
     publishDir { "${params.outdir}/${meta.experiment ?: meta.id}/qc/flagstat" }, mode: 'copy'
 
@@ -57,7 +55,6 @@ process SAMTOOLS_FLAGSTAT {
 
 process CRAMINO {
     tag "${meta.sample_id ?: meta.id} (${stage})"
-    label 'process_low'
     container "${params.container_cramino}"
     publishDir { "${params.outdir}/${meta.experiment ?: meta.id}/qc/cramino" }, mode: 'copy'
 
@@ -85,7 +82,6 @@ process CRAMINO {
 
 
 process MULTIQC {
-    label 'process_low'
     container "${params.container_multiqc}"
     publishDir "${params.outdir}/multiqc", mode: 'copy'
 

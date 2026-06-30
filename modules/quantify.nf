@@ -1,6 +1,5 @@
 process ISOQUANT_DISCOVERY {
     tag "${experiment}"
-    label 'process_ultra'
     container "${params.container_isoquant}"
     publishDir { "${params.outdir}/${experiment}/joint/transcript_model" }, mode: 'copy'
 
@@ -43,7 +42,6 @@ process ISOQUANT_DISCOVERY {
 
 process SQANTI3_QC {
     tag "${experiment}"
-    label 'process_high'
     container "${params.container_sqanti3}"
     publishDir { "${params.outdir}/${experiment}/joint/sqanti3" }, mode: 'copy',
                saveAs: { fn -> fn.startsWith("sqanti_qc/") ? fn.replace("sqanti_qc/", "") : fn }
@@ -85,7 +83,6 @@ process SQANTI3_QC {
 
 process SQANTI3_FILTER {
     tag "${experiment}"
-    label 'process_medium'
     container "${params.container_sqanti3}"
     publishDir { "${params.outdir}/${experiment}/joint/sqanti3" }, mode: 'copy',
                saveAs: { fn -> fn.startsWith("sqanti_filter/") ? fn.replace("sqanti_filter/", "") : fn }
@@ -119,7 +116,6 @@ process SQANTI3_FILTER {
 
 process SQANTI3_RESCUE {
     tag "${experiment}"
-    label 'process_medium'
     container "${params.container_sqanti3}"
     publishDir { "${params.outdir}/${experiment}/joint/sqanti3" }, mode: 'copy',
                saveAs: { fn -> fn.startsWith("sqanti_rescue/") ? fn.replace("sqanti_rescue/", "") : fn }
@@ -157,7 +153,6 @@ process SQANTI3_RESCUE {
 
 process ISOQUANT_DISCOVERY_SHARD {
     tag "${experiment} shard${shard.id} [${shard.chrs.join(',')}]"
-    label 'process_high'
     // ponytail: downgraded from process_ultra — each shard is ~1/17th the data
     container "${params.container_isoquant}"
 
@@ -203,7 +198,6 @@ process ISOQUANT_DISCOVERY_SHARD {
 
 process MERGE_SHARD_GTFS {
     tag "${experiment}"
-    label 'process_low'
     container "${params.container_multiqc}"
     publishDir { "${params.outdir}/${experiment}/joint/transcript_model" }, mode: 'copy'
 
@@ -259,7 +253,6 @@ with open(out_file, 'w') as out:
 
 process SQANTI3_SPLIT_GTF {
     tag "${experiment} (${params.sqanti_chunks} chunks)"
-    label 'process_low'
     container "${params.container_multiqc}"
 
     input:
@@ -318,7 +311,6 @@ for i in range(chunks):
 
 process SQANTI3_QC_CHUNK {
     tag "${experiment} chunk${chunk_id}"
-    label 'process_medium'
     // ponytail: downgraded from process_high — 1/8th the transcripts per chunk
     container "${params.container_sqanti3}"
 
@@ -359,7 +351,6 @@ process SQANTI3_QC_CHUNK {
 
 process SQANTI3_MERGE_CHUNKS {
     tag "${experiment}"
-    label 'process_low'
     container "${params.container_multiqc}"
     publishDir { "${params.outdir}/${experiment}/joint/sqanti3" }, mode: 'copy',
                saveAs: { fn -> fn.startsWith("sqanti_qc/") ? fn.replace("sqanti_qc/", "") : fn }
@@ -400,7 +391,6 @@ process SQANTI3_MERGE_CHUNKS {
 
 process ISOQUANT_QUANTIFY {
     tag "${meta.sample_id}"
-    label 'process_high'
     container "${params.container_isoquant}"
     publishDir { "${params.outdir}/${meta.experiment}/${meta.library_id}/counts" }, mode: 'copy',
                saveAs: { fn -> fn.startsWith("isoquant_out/") ? fn.replaceFirst("isoquant_out/[^/]+/", "") : fn }
