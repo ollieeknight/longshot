@@ -13,8 +13,12 @@ workflow PREPROCESS {
         .groupTuple(by: 0)
         .map { bam, metas ->
             def first_meta = metas[0]
+            // id carries experiment + library context even at the pre-demux SMRT-cell
+            // stage (one raw BAM can hold several multiplexed libraries) — run_id stays
+            // appended for uniqueness across re-sequenced runs of the same library.
+            def lib_tag = metas.collect { it.library_id }.unique().join('-')
             def smrt_meta = [
-                id:                  first_meta.run_id,
+                id:                  "${first_meta.experiment}_${lib_tag}_${first_meta.run_id}",
                 run_id:              first_meta.run_id,
                 experiment:          first_meta.experiment
             ]
