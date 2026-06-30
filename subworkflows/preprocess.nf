@@ -1,5 +1,5 @@
 include { SKERA_SPLIT; EXTRACT_BAM_HEADER_READS; DETECT_SAMPLE_INDICES; CONSTRUCT_MULTIPLEX_PRIMERS; LIMA_ISOSEQ; LIMA_MULTIPLEX; MERGE_INDEX_BAMS; ISOSEQ_TAG; ISOSEQ_REFINE; SAMTOOLS_LENGTH_FILTER } from '../modules/preprocess'
-include { SAMTOOLS_FLAGSTAT; CRAMINO as CRAMINO_RAW; CRAMINO as CRAMINO_SEGMENTED; CRAMINO as CRAMINO_FILTERED; CRAMINO as CRAMINO_FL; CRAMINO as CRAMINO_FLTNC } from '../modules/qc'
+include { SAMTOOLS_FLAGSTAT; CRAMINO as CRAMINO_RAW; CRAMINO as CRAMINO_SEGMENTED; CRAMINO as CRAMINO_LENGTH_FILTERED; CRAMINO as CRAMINO_FULL_LENGTH; CRAMINO as CRAMINO_TRIMMED } from '../modules/qc'
 
 
 workflow PREPROCESS {
@@ -46,7 +46,7 @@ workflow PREPROCESS {
     // cramino: post-length-filter (shows artefact removal read loss)
     SAMTOOLS_LENGTH_FILTER.out.filtered_bam
         .map { meta, bam -> [ meta, 'filtered', '--ubam', bam ] }
-        | CRAMINO_FILTERED
+        | CRAMINO_LENGTH_FILTERED
 
     // ── Run pre-flight sample index detection QC ─────────────────────────────
     ch_grouped_smrtcells
@@ -70,10 +70,10 @@ workflow PREPROCESS {
             multiplexed: unique_indices.size() > 1
             standard: true
         }
-        .set { ch_branched_segmented }
+        .set { ch_index_branch }
 
     // ── Standard single-index or non-multiplexed branch ──────────────────────
-    ch_branched_segmented.standard
+    ch_index_branch.standard
         .map { smrt_meta, segmented_bam, metas ->
             def meta = metas[0]
             def primers = (meta.chemistry == "5prime") ? file(params.tenx_5kit_primers) : file(params.tenx_3kit_primers)
@@ -83,7 +83,7 @@ workflow PREPROCESS {
 
     // ── Multiplexed index demultiplexing branch ──────────────────────────────
     // 1. Construct index-specific primers FASTA
-    ch_branched_segmented.multiplexed
+    ch_index_branch.multiplexed
         .map { smrt_meta, segmented_bam, metas ->
             def first_meta = metas[0]
             def base_primers = (first_meta.chemistry == "5prime") ? file(params.tenx_5kit_primers) : file(params.tenx_3kit_primers)
@@ -93,14 +93,14 @@ workflow PREPROCESS {
         | CONSTRUCT_MULTIPLEX_PRIMERS
 
     // 2. Run LIMA multiplexed demultiplexing
-    ch_branched_segmented.multiplexed
+    ch_index_branch.multiplexed
         .map { smrt_meta, filtered_bam, metas -> [ smrt_meta, filtered_bam ] }
         .join(CONSTRUCT_MULTIPLEX_PRIMERS.out.primers)
         | LIMA_MULTIPLEX
 
     // 3. Flatten split BAM files and merge them back per individual library ID
     LIMA_MULTIPLEX.out.split_bams
-        .join(ch_branched_segmented.multiplexed.map { smrt_meta, filtered_bam, metas -> [ smrt_meta, metas ] })
+        .join(ch_index_branch.multiplexed.map { smrt_meta, filtered_bam, metas -> [ smrt_meta, metas ] })
         .flatMap { smrt_meta, bams, metas ->
             metas.collect { meta ->
                 def lib_bams = bams.findAll { it.name.contains(meta.library_id) }
@@ -117,7 +117,7 @@ workflow PREPROCESS {
     // cramino: post-Lima FL BAM
     ch_fl_bam
         .map { meta, bam -> [ meta, 'fl', '--ubam', bam ] }
-        | CRAMINO_FL
+        | CRAMINO_FULL_LENGTH
 
     // ── downstream tagging & refining per library ID ─────────────────────────
     ISOSEQ_TAG(ch_fl_bam)
@@ -130,7 +130,7 @@ workflow PREPROCESS {
 
     ISOSEQ_REFINE.out.fltnc_bam
         .map { meta, bam -> [ meta, 'fltnc', '--ubam', bam ] }
-        | CRAMINO_FLTNC
+        | CRAMINO_TRIMMED
 
     emit:
     fltnc_bam        = ISOSEQ_REFINE.out.fltnc_bam
@@ -138,9 +138,9 @@ workflow PREPROCESS {
     flagstat         = SAMTOOLS_FLAGSTAT.out.flagstat
     cramino_reports  = CRAMINO_RAW.out.stats
                         .mix(CRAMINO_SEGMENTED.out.stats)
-                        .mix(CRAMINO_FILTERED.out.stats)
-                        .mix(CRAMINO_FL.out.stats)
-                        .mix(CRAMINO_FLTNC.out.stats)
+                        .mix(CRAMINO_LENGTH_FILTERED.out.stats)
+                        .mix(CRAMINO_FULL_LENGTH.out.stats)
+                        .mix(CRAMINO_TRIMMED.out.stats)
     skera_logs       = SKERA_SPLIT.out.skera_log
     refine_summaries = ISOSEQ_REFINE.out.filter_summary.mix(ISOSEQ_REFINE.out.report)
     versions         = Channel.empty()

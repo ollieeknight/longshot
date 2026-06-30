@@ -80,7 +80,7 @@ results/
 ```
 main.nf
   subworkflows/preprocess.nf   — SKERA, index detection, lima, merge, tag, refine
-  subworkflows/align.nf        — whitelist prep, isoseq correct, dedup, pbmm2, CRAM
+  subworkflows/barcode_align.nf — whitelist prep, isoseq correct, dedup, pbmm2, CRAM
   subworkflows/classify.nf     — CB suffix injection, IsoQuant discovery, SQANTI3 QC/filter/rescue
   subworkflows/quantify.nf     — per-library IsoQuant quantification
   subworkflows/export.nf       — MTX export, shared catalog, saturation curves

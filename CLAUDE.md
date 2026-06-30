@@ -64,14 +64,18 @@ longreadr/
   │   └── barcodes/           ← 10x cell barcode whitelists (static)
   ├── subworkflows/           ← Multi-step preprocessing, alignment, and quantification flows
   │   ├── preprocess.nf       ← Dynamic index demultiplexing, tags, and polyA trims
-  │   ├── align.nf            ← Empirical whitelists, sorting, dedup, and mapping
-  │   └── quantify.nf         ← Joint modeling, SQANTI3 filters, and TSV exports
-  └── modules/                ← Single-tool process definitions
-        ├── preprocess.nf
-        ├── align.nf
-        ├── quantify.nf
-        ├── qc.nf             ← Flagstat, cramino (read-loss funnel), and MultiQC
-        └── exporter.nf       ← 10x QC matrix, saturation curve, and shared catalog
+  │   ├── barcode_align.nf    ← Empirical whitelists, barcode correction, dedup, and mapping
+  │   ├── classify.nf         ← Sharded IsoQuant discovery, SQANTI3 QC/filter/rescue
+  │   ├── quantify.nf         ← Per-library IsoQuant quantification against filtered GTF
+  │   └── export.nf           ← 10x-style MTX export, shared catalog, saturation curves
+  ├── modules/                ← Single-tool process definitions
+  │   ├── preprocess.nf
+  │   ├── align.nf
+  │   ├── quantify.nf
+  │   ├── qc.nf             ← Flagstat, cramino (read-loss funnel), and MultiQC
+  │   └── exporter.nf       ← 10x QC matrix, saturation curve, and shared catalog
+  └── lib/
+        └── genome_shards.nf ← Static chromosome-shard partition map used by classify.nf
 ```
 
 ---
@@ -90,7 +94,7 @@ longreadr/
 
 ### Allele-Specific Isoform Expression (ASE) Sub-Pipeline
 
-Full implementation plan: `docs/plan-ase-pipeline.md`
+**Not implemented — see `docs/plan-ase-pipeline.md` for the full plan.** No code from this section exists in `modules/` or `subworkflows/` yet.
 
 **Goal:** Per-haplotype isoform quantification and variant-level ASE per NK cell library, branching from `ALIGN.out.aligned_bam` without touching the main quantification path.
 

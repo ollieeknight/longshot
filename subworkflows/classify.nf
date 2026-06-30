@@ -7,28 +7,7 @@ include { SQANTI3_QC_CHUNK           } from '../modules/quantify'
 include { SQANTI3_MERGE_CHUNKS       } from '../modules/quantify'
 include { SQANTI3_FILTER             } from '../modules/quantify'
 include { SQANTI3_RESCUE             } from '../modules/quantify'
-
-def isoquant_shards() {
-    return [
-        [id: '01', chrs: ['chr1']],
-        [id: '02', chrs: ['chr19']],
-        [id: '03', chrs: ['chr11']],
-        [id: '04', chrs: ['chr2']],
-        [id: '05', chrs: ['chr17']],
-        [id: '06', chrs: ['chr5',  'chr13']],
-        [id: '07', chrs: ['chr6',  'chr21']],
-        [id: '08', chrs: ['chr10', 'chr22']],
-        [id: '09', chrs: ['chr4',  'chr20']],
-        [id: '10', chrs: ['chr14', 'chr8']],
-        [id: '11', chrs: ['chr3']],
-        [id: '12', chrs: ['chr16', 'chr18']],
-        [id: '13', chrs: ['chr12', 'chrM']],
-        [id: '14', chrs: ['chrX',  'chrY']],
-        [id: '15', chrs: ['chr7']],
-        [id: '16', chrs: ['chr9']],
-        [id: '17', chrs: ['chr15']],
-    ]
-}
+include { chromosomeShardMap         } from '../lib/genome_shards'
 
 workflow CLASSIFY {
     take:
@@ -47,13 +26,13 @@ workflow CLASSIFY {
                 [ meta + [suffix: String.format("_%02d", idx + 1)], bam, bai ]
             }
         }
-        .set { ch_with_suffix }
+        .set { ch_cb_disambiguated }
 
     // ── Step 2: Inject CB suffix into BAM tags ────────────────────────────────
-    CB_SUFFIX_INJECT(ch_with_suffix)
+    CB_SUFFIX_INJECT(ch_cb_disambiguated)
 
     // ── Step 3: Cross-product every library BAM with every chromosome shard ───
-    Channel.from(isoquant_shards()).set { ch_shards }
+    Channel.from(chromosomeShardMap()).set { ch_shards }
 
     CB_SUFFIX_INJECT.out.bam
         .combine(ch_shards)

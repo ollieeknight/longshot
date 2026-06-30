@@ -5,10 +5,10 @@ include { SAMTOOLS_SORT_CB     } from '../modules/align'
 include { ISOSEQ_GROUPDEDUP    } from '../modules/align'
 include { PBMM2_ALIGN          } from '../modules/align'
 include { GENERATE_CRAM        } from '../modules/align'
-include { SAMTOOLS_FLAGSTAT; CRAMINO } from '../modules/qc'
+include { SAMTOOLS_FLAGSTAT; CRAMINO as CRAMINO_ALIGNED } from '../modules/qc'
 
 
-workflow ALIGN {
+workflow BARCODE_ALIGN {
     take:
     ch_fltnc_bam  // [meta, bam] — per lane, meta has sample_id for grouping
 
@@ -29,20 +29,20 @@ workflow ALIGN {
             custom: meta.shortread_barcodes != null
             standard: true
         }
-        .set { ch_split_merged }
+        .set { ch_barcode_source_branch }
 
     // Custom: Prepare the custom reverse-complemented whitelist
-    ch_split_merged.custom
+    ch_barcode_source_branch.custom
         .map { meta, bam -> [ meta, file(meta.shortread_barcodes) ] }
         | PREPARE_WHITELIST
 
     // Combine standard BAMs with global static whitelist
-    ch_split_merged.standard
+    ch_barcode_source_branch.standard
         .map { meta, bam -> [ meta, bam, file(params.tenx_whitelist) ] }
         .set { ch_standard_correct_input }
 
     // Combine custom BAMs with their custom prepared whitelist
-    ch_split_merged.custom
+    ch_barcode_source_branch.custom
         .join(PREPARE_WHITELIST.out.whitelist)
         .map { meta, bam, whitelist -> [ meta, bam, whitelist ] }
         .set { ch_custom_correct_input }
@@ -74,7 +74,7 @@ workflow ALIGN {
                 .map { meta, bam -> [ meta, 'dedup', '--ubam', bam ] } )
         .mix( PBMM2_ALIGN.out.aligned_bam
                 .map { meta, bam, bai -> [ meta, 'aligned', '--spliced --karyotype', bam ] } )
-        | CRAMINO
+        | CRAMINO_ALIGNED
 
     // Archive as CRAM
     GENERATE_CRAM(PBMM2_ALIGN.out.aligned_bam)
@@ -83,7 +83,7 @@ workflow ALIGN {
     aligned_bam  = PBMM2_ALIGN.out.aligned_bam
     cram         = GENERATE_CRAM.out.cram
     flagstat     = SAMTOOLS_FLAGSTAT.out.flagstat
-    cramino      = CRAMINO.out.stats
+    cramino      = CRAMINO_ALIGNED.out.stats
     versions     = Channel.empty()
                     .mix(SAMTOOLS_MERGE_FLTNC.out.versions)
                     .mix(PREPARE_WHITELIST.out.versions)
@@ -92,6 +92,6 @@ workflow ALIGN {
                     .mix(ISOSEQ_GROUPDEDUP.out.versions)
                     .mix(PBMM2_ALIGN.out.versions)
                     .mix(SAMTOOLS_FLAGSTAT.out.versions)
-                    .mix(CRAMINO.out.versions)
+                    .mix(CRAMINO_ALIGNED.out.versions)
                     .mix(GENERATE_CRAM.out.versions)
 }

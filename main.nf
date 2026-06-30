@@ -5,7 +5,7 @@ nextflow.enable.dsl = 2
 
 // ─── Imports ──────────────────────────────────────────────────────────────────
 include { PREPROCESS              } from './subworkflows/preprocess'
-include { ALIGN                   } from './subworkflows/align'
+include { BARCODE_ALIGN           } from './subworkflows/barcode_align'
 include { CLASSIFY                } from './subworkflows/classify'
 include { QUANTIFY                } from './subworkflows/quantify'
 include { EXPORT                  } from './subworkflows/export'
@@ -156,14 +156,14 @@ workflow {
     // ── 3. Per-lane preprocessing: HiFi BAM → FLTNC ──────────────────────────
     PREPROCESS(ch_raw_bam)
 
-    // ── 4. Per-sample alignment: merge FLTNC → CRAM ───────────────────────────
-    ALIGN(PREPROCESS.out.fltnc_bam)
+    // ── 4. Per-sample barcode correction, dedup, alignment: merge FLTNC → CRAM ─
+    BARCODE_ALIGN(PREPROCESS.out.fltnc_bam)
 
     // ── 5. Joint Isoform Discovery & SQANTI3 Classification ──────────────────
-    CLASSIFY(ALIGN.out.aligned_bam)
+    CLASSIFY(BARCODE_ALIGN.out.aligned_bam)
 
     // ── 6. Per-Library Quantification ────────────────────────────────────────
-    QUANTIFY(ALIGN.out.aligned_bam, CLASSIFY.out.rescued_gtf)
+    QUANTIFY(BARCODE_ALIGN.out.aligned_bam, CLASSIFY.out.rescued_gtf)
 
     // ── 7. Matrix Export & Saturation Curves ─────────────────────────────────
     EXPORT(QUANTIFY.out.counts_dir, CLASSIFY.out.filtered_class, CLASSIFY.out.rescued_gtf)
@@ -175,12 +175,12 @@ workflow {
         .mix( PREPROCESS.out.flagstat )
         .mix( PREPROCESS.out.skera_logs )
         .mix( PREPROCESS.out.refine_summaries )
-        .mix( ALIGN.out.flagstat )
-        .mix( ALIGN.out.cramino.flatten() )
+        .mix( BARCODE_ALIGN.out.flagstat )
+        .mix( BARCODE_ALIGN.out.cramino.flatten() )
         .mix( PREPROCESS.out.cramino_reports.flatten() )
         .mix( EXPORT.out.saturation )
         .mix( PREPROCESS.out.versions.flatten() )
-        .mix( ALIGN.out.versions.flatten() )
+        .mix( BARCODE_ALIGN.out.versions.flatten() )
         .mix( CLASSIFY.out.versions.flatten() )
         .mix( QUANTIFY.out.versions.flatten() )
         .mix( EXPORT.out.versions.flatten() )
