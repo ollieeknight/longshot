@@ -71,13 +71,13 @@ process LIMA_ISOSEQ {
 
     # Rename oriented BAM to a predictable name regardless of primer labels in FASTA
     # Exactly one non-unassigned oriented BAM must exist for --isoseq mode
-    NBAM=\$(find . -maxdepth 1 -name "fl.*.bam" ! -name "fl.bam" ! -name "*unassigned*" ! -name "fl.removed.bam" | wc -l)
+    NBAM=\$(find . -maxdepth 1 -name "fl.*.bam" ! -name "fl.bam" ! -name "*unassigned*" ! -name "*unbarcoded*" ! -name "fl.removed.bam" | wc -l)
     if [ "\$NBAM" -ne 1 ]; then
         echo "ERROR [LIMA_ISOSEQ]: Expected exactly 1 oriented BAM output from lima, found \$NBAM" >&2
         find . -maxdepth 1 -name "fl.*.bam" >&2
         exit 1
     fi
-    find . -maxdepth 1 -name "fl.*.bam" ! -name "fl.bam" ! -name "*unassigned*" ! -name "fl.removed.bam" \
+    find . -maxdepth 1 -name "fl.*.bam" ! -name "fl.bam" ! -name "*unassigned*" ! -name "*unbarcoded*" ! -name "fl.removed.bam" \
         | xargs -I{} mv {} ${out_prefix}_fl.bam
 
     # Rename lima reports and clips (fl.lima.*)
