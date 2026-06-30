@@ -1,5 +1,5 @@
 include { SKERA_SPLIT; EXTRACT_BAM_HEADER_READS; DETECT_SAMPLE_INDICES; CONSTRUCT_MULTIPLEX_PRIMERS; LIMA_ISOSEQ; LIMA_MULTIPLEX; MERGE_INDEX_BAMS; ISOSEQ_TAG; ISOSEQ_REFINE; SAMTOOLS_LENGTH_FILTER } from '../modules/preprocess'
-include { SAMTOOLS_FLAGSTAT; CRAMINO } from '../modules/qc'
+include { SAMTOOLS_FLAGSTAT; CRAMINO as CRAMINO_RAW; CRAMINO as CRAMINO_SEGMENTED; CRAMINO as CRAMINO_FILTERED; CRAMINO as CRAMINO_FL; CRAMINO as CRAMINO_FLTNC } from '../modules/qc'
 
 
 workflow PREPROCESS {
@@ -25,7 +25,7 @@ workflow PREPROCESS {
     // cramino: raw HiFi BAM (per SMRT cell, before any splitting)
     ch_grouped_smrtcells
         .map { smrt_meta, bam, metas -> [ smrt_meta, 'raw', '--ubam', bam ] }
-        | CRAMINO
+        | CRAMINO_RAW
 
     // ── Run Skera split once per raw BAM flowcell ─────────────────────────────
     ch_grouped_smrtcells
@@ -38,7 +38,7 @@ workflow PREPROCESS {
     // cramino: post-Skera segmented BAM (before length filter)
     SKERA_SPLIT.out.segmented_bam
         .map { meta, bam -> [ meta, 'segmented', '--ubam', bam ] }
-        | CRAMINO
+        | CRAMINO_SEGMENTED
 
     // ── Length filter: remove sub-${params.min_read_length}bp Skera artefacts ─
     SKERA_SPLIT.out.segmented_bam | SAMTOOLS_LENGTH_FILTER
@@ -46,7 +46,7 @@ workflow PREPROCESS {
     // cramino: post-length-filter (shows artefact removal read loss)
     SAMTOOLS_LENGTH_FILTER.out.filtered_bam
         .map { meta, bam -> [ meta, 'filtered', '--ubam', bam ] }
-        | CRAMINO
+        | CRAMINO_FILTERED
 
     // ── Run pre-flight sample index detection QC ─────────────────────────────
     ch_grouped_smrtcells
@@ -117,7 +117,7 @@ workflow PREPROCESS {
     // cramino: post-Lima FL BAM
     ch_fl_bam
         .map { meta, bam -> [ meta, 'fl', '--ubam', bam ] }
-        | CRAMINO
+        | CRAMINO_FL
 
     // ── downstream tagging & refining per library ID ─────────────────────────
     ISOSEQ_TAG(ch_fl_bam)
@@ -130,13 +130,17 @@ workflow PREPROCESS {
 
     ISOSEQ_REFINE.out.fltnc_bam
         .map { meta, bam -> [ meta, 'fltnc', '--ubam', bam ] }
-        | CRAMINO
+        | CRAMINO_FLTNC
 
     emit:
     fltnc_bam        = ISOSEQ_REFINE.out.fltnc_bam
     lima_reports     = LIMA_ISOSEQ.out.lima_reports.mix(LIMA_MULTIPLEX.out.lima_reports)
     flagstat         = SAMTOOLS_FLAGSTAT.out.flagstat
-    cramino_reports  = CRAMINO.out.stats
+    cramino_reports  = CRAMINO_RAW.out.stats
+                        .mix(CRAMINO_SEGMENTED.out.stats)
+                        .mix(CRAMINO_FILTERED.out.stats)
+                        .mix(CRAMINO_FL.out.stats)
+                        .mix(CRAMINO_FLTNC.out.stats)
     skera_logs       = SKERA_SPLIT.out.skera_log
     refine_summaries = ISOSEQ_REFINE.out.filter_summary.mix(ISOSEQ_REFINE.out.report)
     versions         = Channel.empty()
@@ -151,5 +155,5 @@ workflow PREPROCESS {
                         .mix(ISOSEQ_TAG.out.versions)
                         .mix(ISOSEQ_REFINE.out.versions)
                         .mix(SAMTOOLS_FLAGSTAT.out.versions)
-                        .mix(CRAMINO.out.versions)
+                        .mix(CRAMINO_RAW.out.versions)
 }
