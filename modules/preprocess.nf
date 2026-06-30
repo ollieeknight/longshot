@@ -7,8 +7,8 @@ process SKERA_SPLIT {
     tuple val(meta), path(hifi_bam), path(adapters)
 
     output:
-    tuple val(meta), path("${meta.id}_segmented.bam"), emit: segmented_bam
-    path "${meta.id}_skera.log",                       optional: true, emit: skera_log
+    tuple val(meta), path("${meta.id}_${meta.run_id}_segmented.bam"), emit: segmented_bam
+    path "${meta.id}_${meta.run_id}_skera.log",                       optional: true, emit: skera_log
 
     script:
     """
@@ -16,8 +16,8 @@ process SKERA_SPLIT {
         -j ${task.cpus} \\
         ${hifi_bam} \\
         ${adapters} \\
-        ${meta.id}_segmented.bam \\
-        2> ${meta.id}_skera.log
+        ${meta.id}_${meta.run_id}_segmented.bam \\
+        2> ${meta.id}_${meta.run_id}_skera.log
     """
 }
 
@@ -30,7 +30,7 @@ process SAMTOOLS_LENGTH_FILTER {
     tuple val(meta), path(bam)
 
     output:
-    tuple val(meta), path("${meta.id}_filtered.bam"), emit: filtered_bam
+    tuple val(meta), path("${meta.id}_${meta.run_id}_filtered.bam"), emit: filtered_bam
 
     script:
     """
@@ -39,7 +39,7 @@ process SAMTOOLS_LENGTH_FILTER {
         -b \\
         -e "length(seq) >= ${params.min_read_length}" \\
         ${bam} \\
-        -o ${meta.id}_filtered.bam
+        -o ${meta.id}_${meta.run_id}_filtered.bam
     """
 }
 
@@ -48,17 +48,18 @@ process LIMA_ISOSEQ {
     tag "${meta.id}"
     container "${params.container_lima}"
     publishDir { "${params.outdir}/${meta.experiment}/${meta.library_id}/qc/lima" }, mode: 'copy',
-               pattern: '${meta.id}_fl.lima.*'
+               pattern: '${meta.id}_${meta.run_id}_fl.lima.*'
 
     input:
     tuple val(meta), path(segmented_bam), path(primers)
 
     output:
-    tuple val(meta), path("${meta.id}_fl.bam"),        emit: fl_bam
-    path "${meta.id}_fl.lima.*",                       emit: lima_reports
-    path "${meta.id}_fl.removed.bam",                  optional: true, emit: lima_removed
+    tuple val(meta), path("${meta.id}_${meta.run_id}_fl.bam"),        emit: fl_bam
+    path "${meta.id}_${meta.run_id}_fl.lima.*",                       emit: lima_reports
+    path "${meta.id}_${meta.run_id}_fl.removed.bam",                  optional: true, emit: lima_removed
 
     script:
+    def out_prefix = "${meta.id}_${meta.run_id}"
     """
     lima --isoseq \\
         --dump-clips \\
@@ -77,15 +78,15 @@ process LIMA_ISOSEQ {
         exit 1
     fi
     find . -maxdepth 1 -name "fl.*.bam" ! -name "fl.bam" ! -name "*unassigned*" ! -name "fl.removed.bam" \
-        | xargs -I{} mv {} ${meta.id}_fl.bam
+        | xargs -I{} mv {} ${out_prefix}_fl.bam
 
     # Rename lima reports and clips (fl.lima.*)
     for f in fl.lima.*; do
-        mv "\$f" "${meta.id}_\$f"
+        mv "\$f" "${out_prefix}_\$f"
     done
 
     # Rename removed BAM if present
-    [ -f fl.removed.bam ] && mv fl.removed.bam ${meta.id}_fl.removed.bam || true
+    [ -f fl.removed.bam ] && mv fl.removed.bam ${out_prefix}_fl.removed.bam || true
     """
 }
 
@@ -94,17 +95,18 @@ process LIMA_MULTIPLEX {
     tag "${meta.id}"
     container "${params.container_lima}"
     publishDir { "${params.outdir}/${meta.experiment}/${meta.id}/qc/lima" }, mode: 'copy',
-               pattern: '${meta.id}_fl.lima.*'
+               pattern: '${meta.id}_${meta.run_id}_fl.lima.*'
 
     input:
     tuple val(meta), path(segmented_bam), path(primers)
 
     output:
-    tuple val(meta), path("fl.*.bam"),             emit: split_bams
-    path "${meta.id}_fl.lima.*",                   emit: lima_reports
-    path "${meta.id}_fl.removed.bam",              optional: true, emit: lima_removed
+    tuple val(meta), path("fl.*.bam"),                          emit: split_bams
+    path "${meta.id}_${meta.run_id}_fl.lima.*",                 emit: lima_reports
+    path "${meta.id}_${meta.run_id}_fl.removed.bam",            optional: true, emit: lima_removed
 
     script:
+    def out_prefix = "${meta.id}_${meta.run_id}"
     """
     lima --isoseq \\
         --dump-clips \\
@@ -116,11 +118,11 @@ process LIMA_MULTIPLEX {
 
     # Rename lima reports and clips (fl.lima.*)
     for f in fl.lima.*; do
-        mv "\$f" "${meta.id}_\$f"
+        mv "\$f" "${out_prefix}_\$f"
     done
 
     # Rename removed BAM if present
-    [ -f fl.removed.bam ] && mv fl.removed.bam ${meta.id}_fl.removed.bam || true
+    [ -f fl.removed.bam ] && mv fl.removed.bam ${out_prefix}_fl.removed.bam || true
     """
 }
 
@@ -133,7 +135,7 @@ process ISOSEQ_TAG {
     tuple val(meta), path(fl_bam)
 
     output:
-    tuple val(meta), path("${meta.id}_flt.bam"), emit: flt_bam
+    tuple val(meta), path("${meta.id}_${meta.run_id}_flt.bam"), emit: flt_bam
 
     script:
     def design_str = (meta.chemistry == "5prime") ? "16B-10U-13X-T" : "T-12U-16B"
@@ -142,7 +144,7 @@ process ISOSEQ_TAG {
         --design ${design_str} \\
         -j ${task.cpus} \\
         ${fl_bam} \\
-        ${meta.id}_flt.bam
+        ${meta.id}_${meta.run_id}_flt.bam
     """
 }
 
@@ -151,15 +153,15 @@ process ISOSEQ_REFINE {
     tag "${meta.id}"
     container "${params.container_isoseq}"
     publishDir { "${params.outdir}/${meta.experiment}/${meta.library_id}/qc/isoseq_refine" }, mode: 'copy',
-               pattern: '${meta.id}_fltnc.{filter_summary.json,report.csv}'
+               pattern: '${meta.id}_${meta.run_id}_fltnc.{filter_summary.json,report.csv}'
 
     input:
     tuple val(meta), path(flt_bam)
 
     output:
-    tuple val(meta), path("${meta.id}_fltnc.bam"),               emit: fltnc_bam
-    path "${meta.id}_fltnc.filter_summary.json", optional: true, emit: filter_summary
-    path "${meta.id}_fltnc.report.csv",          optional: true, emit: report
+    tuple val(meta), path("${meta.id}_${meta.run_id}_fltnc.bam"),               emit: fltnc_bam
+    path "${meta.id}_${meta.run_id}_fltnc.filter_summary.json", optional: true, emit: filter_summary
+    path "${meta.id}_${meta.run_id}_fltnc.report.csv",          optional: true, emit: report
 
     script:
     def refine_primers = (meta.chemistry == "5prime") ? file(params.tenx_5kit_primers) : file(params.tenx_3kit_primers)
@@ -169,7 +171,7 @@ process ISOSEQ_REFINE {
         -j ${task.cpus} \\
         ${flt_bam} \\
         ${refine_primers} \\
-        ${meta.id}_fltnc.bam
+        ${meta.id}_${meta.run_id}_fltnc.bam
     """
 }
 
@@ -182,11 +184,11 @@ process EXTRACT_BAM_HEADER_READS {
     tuple val(meta), path(bam)
 
     output:
-    tuple val(meta), path("${meta.id}_temp.fasta"), emit: fasta
+    tuple val(meta), path("${meta.id}_${meta.run_id}_temp.fasta"), emit: fasta
 
     script:
     """
-    samtools view ${bam} | head -n 20000 | awk '{print ">read_"NR"\\n"\$10}' > ${meta.id}_temp.fasta
+    samtools view ${bam} | head -n 20000 | awk '{print ">read_"NR"\\n"\$10}' > ${meta.id}_${meta.run_id}_temp.fasta
     """
 }
 
@@ -199,7 +201,7 @@ process DETECT_SAMPLE_INDICES {
     tuple val(meta), path(reads_fasta), val(requested_indices)
 
     output:
-    tuple val(meta), path("${meta.id}_index_report.tsv"), emit: index_report
+    tuple val(meta), path("${meta.id}_${meta.run_id}_index_report.tsv"), emit: index_report
 
     script:
     """
@@ -258,7 +260,7 @@ for idx_id, cnt in matches.items():
     if pct >= 0.5:
         index_report.append(f'{idx_id}\\t{cnt}\\t{pct:.2f}%')
 
-with open('${meta.id}_index_report.tsv', 'w') as fh:
+with open('${meta.id}_${meta.run_id}_index_report.tsv', 'w') as fh:
     fh.write('index_id\\treads\\tpercentage\\n')
     for r in index_report:
         fh.write(r + '\\n')
@@ -286,7 +288,7 @@ process CONSTRUCT_MULTIPLEX_PRIMERS {
     tuple val(meta), val(index_mappings), path(base_primers)
 
     output:
-    tuple val(meta), path("${meta.id}_multiplex_primers.fasta"), emit: primers
+    tuple val(meta), path("${meta.id}_${meta.run_id}_multiplex_primers.fasta"), emit: primers
 
     script:
     """
@@ -331,7 +333,7 @@ for f in os.listdir(index_dir):
 # [primer_sequence]
 # >[library_id]_3p
 # [primer_sequence]
-output_file = '${meta.id}_multiplex_primers.fasta'
+output_file = '${meta.id}_${meta.run_id}_multiplex_primers.fasta'
 mappings = [m.split(':') for m in '${index_mappings}'.replace('[','').replace(']','').split(',') if m.strip()]
 
 with open(output_file, 'w') as fh:
@@ -363,11 +365,11 @@ process MERGE_INDEX_BAMS {
     tuple val(meta), path(bams)
 
     output:
-    tuple val(meta), path("${meta.library_id}_fl.bam"), emit: fl_bam
+    tuple val(meta), path("${meta.library_id}_${meta.run_id}_fl.bam"), emit: fl_bam
 
     script:
     """
-    samtools merge -f -@ ${task.cpus} ${meta.library_id}_fl.bam ${bams}
-    samtools index -@ ${task.cpus} ${meta.library_id}_fl.bam
+    samtools merge -f -@ ${task.cpus} ${meta.library_id}_${meta.run_id}_fl.bam ${bams}
+    samtools index -@ ${task.cpus} ${meta.library_id}_${meta.run_id}_fl.bam
     """
 }

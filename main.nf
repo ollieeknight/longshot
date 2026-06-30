@@ -140,7 +140,7 @@ workflow {
             }
 
             def meta = [
-                id:                  "${row.experiment}_${row.library_id}_${row.run_id}",
+                id:                  "${row.experiment}_${row.library_id}",
                 sample_id:           "${row.experiment}_${row.library_id}",
                 experiment:          row.experiment,
                 library_id:          row.library_id,

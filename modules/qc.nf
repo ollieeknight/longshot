@@ -50,15 +50,18 @@ process CRAMINO {
     tuple val(meta), val(stage), val(extra_flags), path(bam)
 
     output:
-    path "${meta.sample_id ?: meta.id}_${stage}.cramino.txt", emit: stats
+    path "${meta.sample_id ?: "${meta.id}_${meta.run_id}"}_${stage}.cramino.txt", emit: stats
 
     script:
+    // sample_id is set post-merge (unique across runs); smrt_meta (pre-demux) has no
+    // sample_id, so fall back to id+run_id to keep filenames unique per SMRT cell.
+    def out_id = meta.sample_id ?: "${meta.id}_${meta.run_id}"
     """
     cramino \\
         --threads ${task.cpus} \\
         ${extra_flags} \\
         ${bam} \\
-        > ${meta.sample_id}_${stage}.cramino.txt
+        > ${out_id}_${stage}.cramino.txt
     """
 }
 
