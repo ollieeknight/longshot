@@ -24,7 +24,7 @@ process COLLECT_INSTRUMENT_STATS {
 
 
 process SAMTOOLS_FLAGSTAT {
-    tag "${meta.sample_id} (${stage})"
+    tag "${meta.sample_id} ${stage}"
     container "${params.container_samtools}"
     publishDir { "${params.outdir}/${meta.experiment ?: meta.id}/qc/flagstat" }, mode: 'copy'
 
@@ -42,7 +42,7 @@ process SAMTOOLS_FLAGSTAT {
 
 
 process CRAMINO {
-    tag "${meta.sample_id ?: meta.id} (${stage})"
+    tag "${meta.sample_id ?: meta.id}"
     container "${params.container_cramino}"
     publishDir { "${params.outdir}/${meta.experiment ?: meta.id}/qc/cramino" }, mode: 'copy'
 

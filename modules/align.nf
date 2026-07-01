@@ -160,7 +160,14 @@ process CB_SUFFIX_INJECT {
     script:
     """
     samtools view -h ${bam} \\
-    | awk -v OFS="\\t" -v suf="${meta.suffix}" -f inject_cb_suffix.awk \\
+    | awk -v OFS="\\t" -v suf="${meta.suffix}" '
+        /^@/ { print; next }
+        {
+            for (i = 12; i <= NF; i++)
+                if (\$i ~ /^CB:Z:/) \$i = \$i suf
+            print
+        }
+    ' \\
     | samtools view -@ ${task.cpus} -b -o ${meta.sample_id}_suffixed.bam
 
     samtools index -@ ${task.cpus} ${meta.sample_id}_suffixed.bam
